@@ -33,3 +33,20 @@ function saveBase64File_(folder, base64Data, fileName, mimeType) {
   var blob = Utilities.newBlob(bytes, mimeType, fileName);
   return folder.createFile(blob);
 }
+
+/**
+ * Convertit un fichier Word en PDF via le service avancé Drive (v2, conversion native
+ * Google lors de l'upload) et retourne les octets base64 du PDF. Le fichier Google Docs
+ * intermédiaire créé pour la conversion est supprimé après export.
+ * Nécessite le service avancé "Drive" (v2) — cf. appsscript.json.
+ */
+function convertWordToPdfBase64_(wordBlob) {
+  var resource = { title: "conversion-temp", mimeType: MimeType.GOOGLE_DOCS };
+  var converted = Drive.Files.insert(resource, wordBlob, { convert: true });
+  try {
+    var pdfBlob = DriveApp.getFileById(converted.id).getAs("application/pdf");
+    return Utilities.base64Encode(pdfBlob.getBytes());
+  } finally {
+    DriveApp.getFileById(converted.id).setTrashed(true);
+  }
+}

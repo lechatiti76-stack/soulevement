@@ -20,7 +20,23 @@ export type DocumentSource = {
   date_upload: string;
 };
 
+export type ExtractionStatut = "en_cours" | "a_verifier" | "valide" | "erreur";
+
+export type Extraction = {
+  id: string;
+  dossier_id: string;
+  champs_extraits: string; // JSON stringifié côté Sheets
+  confiance: string;
+  statut: ExtractionStatut;
+};
+
 export type DossierWithSources = {
   dossier: Dossier;
   sources: DocumentSource[];
+  extraction: Extraction | null;
+};
+
+export type ExtractionResult = {
+  champsExtraits: Record<string, unknown>;
+  statut: ExtractionStatut;
 };

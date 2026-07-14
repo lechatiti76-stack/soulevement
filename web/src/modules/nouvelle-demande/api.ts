@@ -1,4 +1,4 @@
-import type { Dossier, DossierWithSources } from "./types";
+import type { Dossier, DossierWithSources, ExtractionResult } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -22,6 +22,12 @@ export function createDossier(file: { fileBase64: string; fileName: string; mime
   return request<DossierWithSources>("/api/dossiers", {
     method: "POST",
     body: JSON.stringify(file),
+  });
+}
+
+export function extractDossierIA(id: string) {
+  return request<ExtractionResult>(`/api/dossiers/${id}/extract`, {
+    method: "POST",
   });
 }
 

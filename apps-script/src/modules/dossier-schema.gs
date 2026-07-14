@@ -1,10 +1,11 @@
 /**
- * Schéma du formulaire "Nouvelle demande" — utilisé uniquement pour produire les libellés
- * dans le PDF généré (cf. lib/pdf.gs). Le rendu du formulaire lui-même est côté frontend.
+ * Schéma du formulaire "Nouvelle demande" — utilisé pour produire les libellés dans le PDF
+ * généré (cf. lib/pdf.gs) et pour construire le schéma JSON de l'extraction IA (cf. lib/openai.gs).
+ * Le rendu du formulaire lui-même est côté frontend.
  *
  * IMPORTANT : doit rester synchronisé manuellement avec
- * web/src/modules/nouvelle-demande/schema.ts (mêmes name/label/type). Phase 2 accepte cette
- * duplication (un seul module) ; à revoir si un schéma partagé devient nécessaire (Phase 3+).
+ * web/src/modules/nouvelle-demande/schema.ts (mêmes name/label/type). Accepté tant qu'il n'y a
+ * qu'un seul module ; à revoir si un schéma partagé devient nécessaire (plusieurs modules).
  */
 var DOSSIER_SCHEMA = [
   { name: "objet", label: "Objet de la demande", type: "text" },

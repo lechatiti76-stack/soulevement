@@ -35,6 +35,7 @@ function setupDatabase() {
       "date_creation", "date_validation", "form_data", "pdf_url", "qr_code_url",
     ],
     docmod_documents_source: ["id", "dossier_id", "type", "drive_file_id", "date_upload"],
+    docmod_extraction_ia: ["id", "dossier_id", "champs_extraits", "confiance", "statut"],
     docmod_annexes: ["id", "dossier_id", "type", "drive_file_id", "nom", "date_ajout"],
     docmod_commentaires: ["id", "dossier_id", "user_id", "texte", "date"],
     docmod_historique: ["id", "dossier_id", "action", "user_id", "date", "detail"],

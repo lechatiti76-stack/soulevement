@@ -32,7 +32,9 @@ clasp push
 Puis, dans l'éditeur Apps Script (Paramètres du projet → Propriétés du script), définir :
 - `JWT_SECRET` — secret aléatoire (ex. `openssl rand -hex 32`)
 - `PASSWORD_PEPPER` — autre secret aléatoire, distinct de `JWT_SECRET`
-- `OPENAI_API_KEY` — pas encore utilisé avant la Phase 3
+- `OPENAI_API_KEY` — clé API OpenAI, utilisée par l'extraction automatique (cf. ARCHITECTURE.md §7)
+
+Activer aussi le service avancé **Drive API** (v2) dans l'éditeur Apps Script (Services → `+` → Drive API) — nécessaire à la conversion Word→PDF pour l'extraction IA ; la déclaration dans `appsscript.json` seule ne suffit pas toujours après un `clasp push`, à vérifier dans l'éditeur si `Drive` n'est pas reconnu.
 
 Exécuter ensuite, une fois, depuis l'éditeur Apps Script :
 1. `setupDatabase()` — crée le classeur Google Sheets et tous les onglets/en-têtes, et enregistre `DB_SPREADSHEET_ID`
@@ -57,8 +59,8 @@ npm run dev
 
 ## État d'avancement
 
-Phase 2 — module "Nouvelle demande" : dépôt de document, formulaire dynamique manuel (texte, dates, listes, signature...), génération PDF à la validation. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
+Phase 3 — extraction IA automatique (OpenAI, API Responses) à l'upload d'un document, pré-remplissage du formulaire, correction manuelle toujours possible. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
 
-**Non vérifié en conditions réelles** : cette machine ne dispose pas de Node.js/npm, donc `npm install`/`npm run dev` n'ont pas pu être exécutés, et aucun classeur Apps Script réel n'a encore été déployé. Le code suit les conventions Next.js 14 (App Router) et Apps Script mais n'a pas tourné.
+**Non vérifié en conditions réelles** : cette machine ne dispose pas de Node.js/npm ni d'accès à un compte Google/OpenAI, donc rien n'a pu être exécuté. Le code suit les conventions Next.js 14 (App Router) et Apps Script, et la forme de la requête OpenAI est écrite d'après la documentation connue — à confirmer et corriger si besoin au premier appel réel (cf. [ARCHITECTURE.md §7](./ARCHITECTURE.md#7-pipeline-ia-documentaire)).
 
-**Connu manquant en Phase 2** (voir [ARCHITECTURE.md §8](./ARCHITECTURE.md#8-génération-pdf)) : logo et QR code dans le PDF, photos/annexes incrustées — différés aux phases suivantes.
+**Connu manquant** (voir [ARCHITECTURE.md §8](./ARCHITECTURE.md#8-génération-pdf)) : logo et QR code dans le PDF, photos/annexes incrustées — différés aux phases suivantes.

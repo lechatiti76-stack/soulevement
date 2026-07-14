@@ -1,6 +1,6 @@
 /**
- * Module "Nouvelle demande" : dépôt de document, formulaire manuel, génération PDF.
- * Phase 2 — sans extraction IA (Phase 3), sans galerie photos/annexes (Phase 4/5).
+ * Module "Nouvelle demande" : dépôt de document, extraction IA, formulaire, génération PDF.
+ * Sans galerie photos/annexes ni archivage complet (Phase 4/5).
  * Cf. ARCHITECTURE.md §4, §6, §7.
  */
 
@@ -9,6 +9,7 @@ var DOSSIER_MODULE = "nouvelle-demande";
 function dossiersHandlers_() {
   return {
     "dossiers.create": dossiersCreate_,
+    "dossiers.extractIA": dossiersExtractIA_,
     "dossiers.updateForm": dossiersUpdateForm_,
     "dossiers.validate": dossiersValidate_,
     "dossiers.get": dossiersGet_,
@@ -54,6 +55,65 @@ function dossiersCreate_(body) {
   logHistorique_(dossierId, "creation", session.sub, "Dossier créé (" + body.fileName + ")");
 
   return dossierGetById_(dossierId, session);
+}
+
+/**
+ * Extraction IA synchrone : appelle OpenAI pendant l'exécution de la requête (pas de
+ * découpage async, cf. lib/openai.gs). Échoue proprement — l'utilisateur garde la main
+ * pour remplir le formulaire manuellement si l'extraction échoue.
+ */
+function dossiersExtractIA_(body) {
+  var session = requireAuth_(body);
+  var found = getOwnedDossierRow_(body.id, session);
+  var dossier = found.data;
+
+  var source = readTable_("docmod_documents_source").filter(function (s) {
+    return String(s.dossier_id) === String(dossier.id);
+  })[0];
+  if (!source) throw new Error("Aucun document source pour ce dossier");
+
+  var extractionId = Utilities.getUuid();
+  appendRow_("docmod_extraction_ia", {
+    id: extractionId,
+    dossier_id: dossier.id,
+    champs_extraits: "{}",
+    confiance: "",
+    statut: "en_cours",
+  });
+
+  try {
+    var file = DriveApp.getFileById(source.drive_file_id);
+    var mimeType = file.getBlob().getContentType();
+    var base64;
+
+    if (source.type === "word") {
+      base64 = convertWordToPdfBase64_(file.getBlob());
+      mimeType = "application/pdf";
+    } else {
+      base64 = Utilities.base64Encode(file.getBlob().getBytes());
+    }
+
+    var fields = extractFieldsFromDocument_(base64, mimeType, file.getName(), DOSSIER_SCHEMA);
+
+    var extractionRow = findRow_("docmod_extraction_ia", function (e) {
+      return e.id === extractionId;
+    });
+    updateRow_("docmod_extraction_ia", extractionRow.sheetRow, {
+      champs_extraits: JSON.stringify(fields),
+      statut: "a_verifier",
+    });
+
+    logHistorique_(dossier.id, "extraction_ia", session.sub, "Champs extraits automatiquement");
+
+    return { champsExtraits: fields, statut: "a_verifier" };
+  } catch (err) {
+    var failedRow = findRow_("docmod_extraction_ia", function (e) {
+      return e.id === extractionId;
+    });
+    if (failedRow) updateRow_("docmod_extraction_ia", failedRow.sheetRow, { statut: "erreur" });
+
+    throw new Error("Extraction IA impossible : " + (err.message || err));
+  }
 }
 
 function dossiersUpdateForm_(body) {
@@ -139,7 +199,12 @@ function dossierGetById_(id, session) {
     return String(s.dossier_id) === String(id);
   });
 
-  return { dossier: found.data, sources: sources };
+  var extractions = readTable_("docmod_extraction_ia").filter(function (e) {
+    return String(e.dossier_id) === String(id);
+  });
+  var extraction = extractions.length ? extractions[extractions.length - 1] : null;
+
+  return { dossier: found.data, sources: sources, extraction: extraction };
 }
 
 function getOwnedDossierRow_(id, session) {

@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { UploadZone } from "@/modules/nouvelle-demande/components/UploadZone";
 import { FormEngine } from "@/modules/nouvelle-demande/components/FormEngine";
 import { dossierSchema } from "@/modules/nouvelle-demande/schema";
-import { createDossier, saveDossierForm, validateDossier } from "@/modules/nouvelle-demande/api";
+import {
+  createDossier,
+  extractDossierIA,
+  saveDossierForm,
+  validateDossier,
+} from "@/modules/nouvelle-demande/api";
 
 type Step = "upload" | "formulaire";
 
@@ -16,6 +21,8 @@ export default function NouvelleDemandeWizardPage() {
   const [numero, setNumero] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [iaNotice, setIaNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleUpload(file: { fileBase64: string; fileName: string; mimeType: string }) {
@@ -26,10 +33,25 @@ export default function NouvelleDemandeWizardPage() {
       setDossierId(dossier.id);
       setNumero(dossier.numero);
       setStep("formulaire");
+      runExtraction(dossier.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runExtraction(id: string) {
+    setExtracting(true);
+    setIaNotice(null);
+    try {
+      const result = await extractDossierIA(id);
+      setValues((v) => ({ ...v, ...result.champsExtraits }));
+      setIaNotice("Champs pré-remplis par l'IA — vérifiez et corrigez si nécessaire avant de valider.");
+    } catch {
+      setIaNotice("Extraction automatique indisponible pour ce document — remplissez le formulaire manuellement.");
+    } finally {
+      setExtracting(false);
     }
   }
 
@@ -72,6 +94,17 @@ export default function NouvelleDemandeWizardPage() {
 
       {step === "formulaire" && (
         <div className="space-y-6">
+          {extracting && (
+            <p className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elevated))] px-4 py-3 text-sm text-[rgb(var(--text-muted))]">
+              Analyse du document en cours...
+            </p>
+          )}
+          {!extracting && iaNotice && (
+            <p className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elevated))] px-4 py-3 text-sm text-[rgb(var(--text-muted))]">
+              {iaNotice}
+            </p>
+          )}
+
           <FormEngine
             schema={dossierSchema}
             values={values}

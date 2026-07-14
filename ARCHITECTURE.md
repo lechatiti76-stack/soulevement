@@ -153,6 +153,10 @@ Le frontend n'appelle jamais Apps Script directement (cf. décision §2 option B
 
 Clé API OpenAI stockée en `PropertiesService.getScriptProperties()` côté Apps Script — jamais exposée au frontend.
 
+**Décision d'implémentation** : l'extraction est appelée **synchrone**, dans le même appel `dossiers.extractIA` (pas de découpage `en_cours` + trigger + polling comme envisagé plus haut). Un appel OpenAI sur un document unique reste largement sous la limite de 6 min d'Apps Script ; le découpage asynchrone n'est ajouté que si un cas réel (document volumineux, multi-pages) le nécessite — pas construit par anticipation. Le statut (`en_cours`/`a_verifier`/`erreur`) est quand même écrit dans `docmod_extraction_ia` à chaque étape, pour ne pas avoir à changer le contrat de données si l'async devient nécessaire plus tard.
+
+**Non vérifié en conditions réelles** : `apps-script/src/lib/openai.gs` appelle l'API Responses d'OpenAI (`/v1/responses`, sortie contrainte par `json_schema`) — écrit sans accès à un compte OpenAI pour tester. La forme exacte de la requête/réponse est à confirmer au premier appel réel et pourra nécessiter des ajustements. Word → PDF utilise le service avancé Drive v2 (`Drive.Files.insert(..., {convert:true})`), à activer manuellement dans l'éditeur Apps Script (Services → Drive API) en plus de la déclaration dans `appsscript.json`.
+
 ---
 
 ## 8. Génération PDF
@@ -216,7 +220,7 @@ src/
 - **Frontend** : GitHub → Vercel (déploiement auto sur push `main`, preview sur PR)
 - **Backend** : Apps Script géré en local via `clasp` (versionné dans le même repo GitHub, dossier `apps-script/`), déployé manuellement ou via GitHub Action `clasp push && clasp deploy`
 - **Secrets** :
-  - Apps Script (`ScriptProperties`, jamais commités) : `JWT_SECRET`, `PASSWORD_PEPPER`, `DB_SPREADSHEET_ID` (auto-rempli par `setupDatabase()`), `OPENAI_API_KEY` (Phase 3)
+  - Apps Script (`ScriptProperties`, jamais commités) : `JWT_SECRET`, `PASSWORD_PEPPER`, `DB_SPREADSHEET_ID` (auto-rempli par `setupDatabase()`), `OPENAI_API_KEY` (extraction IA, cf. §7)
   - Next.js (`.env.local` / variables Vercel, jamais commis) : `APPS_SCRIPT_URL` (URL du déploiement Web App), `JWT_SECRET` (même valeur que côté Apps Script — nécessaire pour que le middleware vérifie les JWT sans round-trip réseau à chaque requête)
 
 ---
@@ -228,7 +232,7 @@ src/
 | 0 | Setup repo, CI, squelette Next.js + Apps Script, connexion Sheets/Drive de base | Codé |
 | 1 | Authentification (login, JWT, rôles), shell + dashboard vide, menu latéral | Codé |
 | 2 | Module "Nouvelle demande" : upload document + formulaire dynamique **manuel** (sans IA) + génération PDF basique | Codé |
-| 3 | Intégration IA (extraction automatique, pré-remplissage, statut asynchrone) | À faire |
+| 3 | Intégration IA (extraction automatique, pré-remplissage) | Codé |
 | 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | À faire |
 | 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | À faire |
 | 6 | Notifications, paramètres admin, PWA, mode sombre, polish animations | À faire |
