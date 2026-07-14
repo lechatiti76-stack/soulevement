@@ -26,12 +26,12 @@ function doGet(e) {
 
 /**
  * Dispatch vers le module concerné selon le préfixe de l'action (ex. "auth.login", "dossiers.create").
- * Chaque module enregistre ses handlers dans MODULE_HANDLERS (cf. src/modules/*).
  */
 function routeAction(action, body) {
   if (!action) throw new Error("Paramètre 'action' manquant");
 
-  var handler = MODULE_HANDLERS[action];
+  var handlers = getModuleHandlers_();
+  var handler = handlers[action];
   if (!handler) throw new Error("Action inconnue: " + action);
 
   return handler(body);
@@ -43,6 +43,12 @@ function jsonResponse(data) {
   );
 }
 
-// Registre central des handlers, alimenté par chaque module (auth.gs, users.gs, dossiers.gs...).
-// Placeholder Phase 0 — les modules réels seront ajoutés en Phase 1.
-var MODULE_HANDLERS = {};
+/**
+ * Fusionne les handlers exposés par chaque module (src/modules/*.gs, fonction "<module>Handlers_()").
+ * Ajouter un module = ajouter son appel ici, sans toucher aux autres.
+ * Calculé à chaque appel plutôt qu'en variable globale pour ne pas dépendre de l'ordre
+ * de chargement des fichiers .gs par Apps Script.
+ */
+function getModuleHandlers_() {
+  return Object.assign({}, authHandlers_());
+}

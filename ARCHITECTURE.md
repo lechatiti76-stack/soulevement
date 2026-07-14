@@ -65,10 +65,10 @@ Un classeur unique, un onglet par table.
 
 | Table | Colonnes clés |
 |---|---|
-| `users` | id, nom, prenom, email, identifiant, password_hash, photo_url, fonction, role, actif, date_creation |
-| `roles` | id, nom (admin/utilisateur), permissions (JSON) |
+| `users` | id, nom, prenom, email, identifiant, password_hash, password_salt, photo_url, fonction, role, actif, date_creation |
+| `roles` | id, nom (admin/utilisateur), permissions (JSON) — non exploité en Phase 1, rôle stocké directement sur `users.role` |
 | `sessions` | id, user_id, refresh_token_hash, user_agent, ip, created_at, expires_at |
-| `login_log` | id, user_id, date, ip, succes (bool) |
+| `login_log` | id, user_id, identifiant, date, succes (bool) |
 | `activity_log` | id, user_id, module, action, cible_id, date, detail |
 | `archives_index` | id, numero_dossier, module, user_id, statut, date_creation, date_validation, pdf_url |
 | `settings` | clé, valeur (logo_url, nom_app, couleurs, etc.) |
@@ -210,7 +210,9 @@ src/
 
 - **Frontend** : GitHub → Vercel (déploiement auto sur push `main`, preview sur PR)
 - **Backend** : Apps Script géré en local via `clasp` (versionné dans le même repo GitHub, dossier `apps-script/`), déployé manuellement ou via GitHub Action `clasp push && clasp deploy`
-- **Secrets** : clé OpenAI et secret JWT en `ScriptProperties` (jamais commités) ; variables Vercel pour les URLs d'API
+- **Secrets** :
+  - Apps Script (`ScriptProperties`, jamais commités) : `JWT_SECRET`, `PASSWORD_PEPPER`, `DB_SPREADSHEET_ID` (auto-rempli par `setupDatabase()`), `OPENAI_API_KEY` (Phase 3)
+  - Next.js (`.env.local` / variables Vercel, jamais commis) : `APPS_SCRIPT_URL` (URL du déploiement Web App), `JWT_SECRET` (même valeur que côté Apps Script — nécessaire pour que le middleware vérifie les JWT sans round-trip réseau à chaque requête)
 
 ---
 

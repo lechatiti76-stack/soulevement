@@ -1,7 +1,10 @@
+import type { Role } from "./session";
+
 export type NavItem = {
   label: string;
   href: string;
   icon: string;
+  roles?: Role[]; // si absent, visible par tous les rôles authentifiés
 };
 
 // Menu principal — cf. cahier des charges. Les modules métier (ex. "Nouvelle demande")
@@ -15,7 +18,7 @@ export const mainNav: NavItem[] = [
   { label: "Pièces jointes", href: "/pieces-jointes", icon: "📎" },
   { label: "Formulaires", href: "/formulaires", icon: "📝" },
   { label: "Statistiques", href: "/statistiques", icon: "📊" },
-  { label: "Utilisateurs", href: "/utilisateurs", icon: "👥" },
-  { label: "Paramètres", href: "/parametres", icon: "⚙️" },
+  { label: "Utilisateurs", href: "/utilisateurs", icon: "👥", roles: ["admin"] },
+  { label: "Paramètres", href: "/parametres", icon: "⚙️", roles: ["admin"] },
   { label: "Aide", href: "/aide", icon: "❓" },
 ];

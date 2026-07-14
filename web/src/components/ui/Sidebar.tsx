@@ -5,15 +5,17 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { mainNav } from "@/lib/navigation";
+import type { Role } from "@/lib/session";
 
-export function Sidebar() {
+export function Sidebar({ role }: { role?: Role }) {
   const pathname = usePathname();
+  const items = mainNav.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-[rgb(var(--border))] bg-[rgb(var(--bg-elevated))] p-4 md:flex md:flex-col">
       <div className="mb-6 px-2 text-lg font-semibold">Soulèvement</div>
       <nav className="flex flex-col gap-1">
-        {mainNav.map((item) => {
+        {items.map((item) => {
           const active = pathname === item.href || pathname?.startsWith(item.href + "/");
           return (
             <Link key={item.href} href={item.href} className="relative">
