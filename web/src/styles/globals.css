@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 250 250 252;
+  --bg-elevated: 255 255 255;
+  --text: 15 15 20;
+  --text-muted: 100 100 115;
+  --border: 228 228 234;
+}
+
+.dark {
+  --bg: 12 12 16;
+  --bg-elevated: 22 22 28;
+  --text: 240 240 245;
+  --text-muted: 160 160 172;
+  --border: 40 40 50;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--text));
+}
