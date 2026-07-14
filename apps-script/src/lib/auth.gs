@@ -75,3 +75,14 @@ function base64UrlEncodeString_(str) {
 function base64UrlDecodeToString_(str) {
   return Utilities.newBlob(Utilities.base64DecodeWebSafe(str)).getDataAsString();
 }
+
+/**
+ * Vérifie le JWT transmis par le proxy Next.js (body.accessToken) et retourne son payload.
+ * Le Web App est déployé en accès anonyme (cf. appsscript.json) : c'est ce contrôle,
+ * pas la configuration de déploiement, qui protège les actions authentifiées.
+ */
+function requireAuth_(body) {
+  var token = body && body.accessToken;
+  if (!token) throw new Error("Non authentifié");
+  return verifyJwt_(token);
+}

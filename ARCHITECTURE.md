@@ -126,7 +126,7 @@ Un seul déploiement Web App, routage par `action` dans le corps JSON (Apps Scri
 | `stats.summary` | POST | utilisateur/admin | Agrégats pour le dashboard et la page statistiques |
 | `settings.get/update` | POST | admin | Paramètres globaux |
 
-Le frontend n'appelle jamais Apps Script directement (cf. décision §2 option B) : il passe par des routes `/api/*` Next.js qui ajoutent le JWT, gèrent le CSRF et relaient la requête.
+Le frontend n'appelle jamais Apps Script directement (cf. décision §2 option B) : il passe par des routes `/api/*` Next.js qui ajoutent le JWT, gèrent le CSRF et relaient la requête. Le Web App Apps Script étant déployé en accès anonyme (`ANYONE_ANONYMOUS`, cf. `appsscript.json`), chaque action authentifiée reçoit aussi le JWT dans le corps (`accessToken`) et le revérifie elle-même via `requireAuth_()` — la protection ne repose donc pas uniquement sur le fait que l'URL Apps Script n'est pas censée être connue.
 
 **Contrainte importante :** Apps Script Web App a un timeout d'exécution de 6 minutes et ne supporte pas le vrai async côté serveur. Toute opération longue (appel IA sur un gros PDF, OCR multi-pages) doit être **découpée** : une action lance le traitement et écrit un statut `en_cours` dans `docmod_extraction_ia`, un déclencheur (`ScriptApp.newTrigger`, exécution différée) ou un polling léger du frontend interroge le statut jusqu'à `termine`.
 
@@ -157,9 +157,14 @@ Clé API OpenAI stockée en `PropertiesService.getScriptProperties()` côté App
 
 ## 8. Génération PDF
 
-Approche retenue : **template Google Docs** avec balises (`{{numero_dossier}}`, `{{nom_utilisateur}}`, `{{date}}`, `{{champ_x}}`…), dupliqué et rempli via `DocumentApp` par Apps Script, images (signature, photos, QR code) insérées par position, puis exporté en PDF via `DriveApp`/`Utilities`. Le QR code est généré via une lib légère côté Apps Script (ou un service externe type `api.qrserver.com` appelé en `UrlFetchApp`, à confirmer) encodant l'URL de consultation du dossier archivé.
+**Décision révisée en Phase 2** (implémentée dans `apps-script/src/lib/pdf.gs`) : plutôt qu'un template Google Docs statique à balises, le document est **construit programmatiquement** via `DocumentApp` à chaque validation (titre, numéro de dossier, date, utilisateur, puis une ligne par champ du schéma du formulaire). Raison : le formulaire est dynamique par module (§10), donc l'ensemble des champs à imprimer varie — un template à balises fixes aurait dû être resynchronisé à chaque évolution de schéma, alors que la génération programmatique lit directement le schéma. Le document est ensuite exporté en PDF (`DriveApp...getAs("application/pdf")`) puis le Google Doc intermédiaire est supprimé — seul le PDF est conservé dans Drive.
 
-Contenu obligatoire (repris du CDC) : logo, nom app, date, utilisateur, données du formulaire, signature, photos, annexes (liste + liens), numéro de dossier, QR code, pagination automatique (native à Google Docs).
+Implémenté en Phase 2 : numéro de dossier, date, utilisateur, champs du formulaire, signature (image insérée depuis le champ de type `signature`), pagination (native à Google Docs).
+
+**Différé** (à ajouter avant la Phase 4 "archivage complet") :
+- **Logo** — dépend de `settings.logo_url` (paramètres admin, pas encore implémentés)
+- **QR code** — décision §2 : encodeur JS pur embarqué en Apps Script, pas encore écrit (~300+ lignes, tâche dédiée)
+- **Photos / annexes intégrées au PDF** — actuellement seule la signature est embarquée ; les photos/pièces jointes (Phase 5) seront listées en lien plutôt qu'incrustées dans un premier temps
 
 ---
 
@@ -218,16 +223,18 @@ src/
 
 ## 12. Roadmap de livraison proposée
 
-| Phase | Contenu |
-|---|---|
-| 0 | Setup repo, CI, squelette Next.js + Apps Script, connexion Sheets/Drive de base |
-| 1 | Authentification (login, JWT, rôles), shell + dashboard vide, menu latéral |
-| 2 | Module "Nouvelle demande" : upload document + formulaire dynamique **manuel** (sans IA) + génération PDF basique |
-| 3 | Intégration IA (extraction automatique, pré-remplissage, statut asynchrone) |
-| 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires |
-| 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques |
-| 6 | Notifications, paramètres admin, PWA, mode sombre, polish animations |
-| 7 | Durcissement sécurité, tests, documentation d'installation/déploiement |
+| Phase | Contenu | Statut |
+|---|---|---|
+| 0 | Setup repo, CI, squelette Next.js + Apps Script, connexion Sheets/Drive de base | Codé |
+| 1 | Authentification (login, JWT, rôles), shell + dashboard vide, menu latéral | Codé |
+| 2 | Module "Nouvelle demande" : upload document + formulaire dynamique **manuel** (sans IA) + génération PDF basique | Codé |
+| 3 | Intégration IA (extraction automatique, pré-remplissage, statut asynchrone) | À faire |
+| 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | À faire |
+| 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | À faire |
+| 6 | Notifications, paramètres admin, PWA, mode sombre, polish animations | À faire |
+| 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | À faire |
+
+« Codé » signifie non testé en conditions réelles (pas de Node.js ni de déploiement Apps Script sur la machine de développement actuelle) — cf. [README](./README.md#état-davancement).
 
 ---
 

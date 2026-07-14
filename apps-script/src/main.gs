@@ -50,5 +50,5 @@ function jsonResponse(data) {
  * de chargement des fichiers .gs par Apps Script.
  */
 function getModuleHandlers_() {
-  return Object.assign({}, authHandlers_());
+  return Object.assign({}, authHandlers_(), dossiersHandlers_());
 }

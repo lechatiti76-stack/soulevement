@@ -1,0 +1,198 @@
+/**
+ * Module "Nouvelle demande" : dépôt de document, formulaire manuel, génération PDF.
+ * Phase 2 — sans extraction IA (Phase 3), sans galerie photos/annexes (Phase 4/5).
+ * Cf. ARCHITECTURE.md §4, §6, §7.
+ */
+
+var DOSSIER_MODULE = "nouvelle-demande";
+
+function dossiersHandlers_() {
+  return {
+    "dossiers.create": dossiersCreate_,
+    "dossiers.updateForm": dossiersUpdateForm_,
+    "dossiers.validate": dossiersValidate_,
+    "dossiers.get": dossiersGet_,
+    "dossiers.list": dossiersList_,
+  };
+}
+
+function dossiersCreate_(body) {
+  var session = requireAuth_(body);
+
+  if (!body.fileBase64 || !body.fileName || !body.mimeType) {
+    throw new Error("Document source requis (fileBase64, fileName, mimeType)");
+  }
+
+  var numero = nextDossierNumero_();
+  var folder = getDossierFolder_(DOSSIER_MODULE, numero);
+  var sourceFolder = getOrCreateFolder_(folder, "source");
+  var file = saveBase64File_(sourceFolder, body.fileBase64, body.fileName, body.mimeType);
+
+  var dossierId = Utilities.getUuid();
+  var now = new Date().toISOString();
+
+  appendRow_("docmod_dossiers", {
+    id: dossierId,
+    numero: numero,
+    user_id: session.sub,
+    statut: "brouillon",
+    date_creation: now,
+    date_validation: "",
+    form_data: "{}",
+    pdf_url: "",
+    qr_code_url: "",
+  });
+
+  appendRow_("docmod_documents_source", {
+    id: Utilities.getUuid(),
+    dossier_id: dossierId,
+    type: guessDocType_(body.mimeType),
+    drive_file_id: file.getId(),
+    date_upload: now,
+  });
+
+  logHistorique_(dossierId, "creation", session.sub, "Dossier créé (" + body.fileName + ")");
+
+  return dossierGetById_(dossierId, session);
+}
+
+function dossiersUpdateForm_(body) {
+  var session = requireAuth_(body);
+  var found = getOwnedDossierRow_(body.id, session);
+
+  updateRow_("docmod_dossiers", found.sheetRow, { form_data: JSON.stringify(body.formData || {}) });
+  logHistorique_(body.id, "modification_formulaire", session.sub, "");
+
+  return dossierGetById_(body.id, session);
+}
+
+function dossiersValidate_(body) {
+  var session = requireAuth_(body);
+  var found = getOwnedDossierRow_(body.id, session);
+  var dossier = found.data;
+
+  if (dossier.statut === "valide" || dossier.statut === "archive") {
+    throw new Error("Ce dossier est déjà validé");
+  }
+
+  var userRow = findRow_("users", function (u) {
+    return String(u.id) === String(dossier.user_id);
+  });
+  dossier.userDisplay = userRow ? userRow.data.prenom + " " + userRow.data.nom : dossier.user_id;
+  dossier.module = DOSSIER_MODULE;
+
+  var pdfFile = buildAndExportDossierPdf_(dossier, DOSSIER_SCHEMA);
+  var now = new Date().toISOString();
+
+  updateRow_("docmod_dossiers", found.sheetRow, {
+    statut: "valide",
+    date_validation: now,
+    pdf_url: pdfFile.getUrl(),
+  });
+
+  appendRow_("archives_index", {
+    id: Utilities.getUuid(),
+    numero_dossier: dossier.numero,
+    module: DOSSIER_MODULE,
+    user_id: dossier.user_id,
+    statut: "valide",
+    date_creation: dossier.date_creation,
+    date_validation: now,
+    pdf_url: pdfFile.getUrl(),
+  });
+
+  logHistorique_(body.id, "validation", session.sub, "PDF généré : " + pdfFile.getUrl());
+
+  return dossierGetById_(body.id, session);
+}
+
+function dossiersGet_(body) {
+  var session = requireAuth_(body);
+  return dossierGetById_(body.id, session);
+}
+
+function dossiersList_(body) {
+  var session = requireAuth_(body);
+  var all = readTable_("docmod_dossiers");
+  var mine =
+    session.role === "admin"
+      ? all
+      : all.filter(function (d) {
+          return String(d.user_id) === String(session.sub);
+        });
+
+  mine.sort(function (a, b) {
+    return String(b.date_creation).localeCompare(String(a.date_creation));
+  });
+
+  return { dossiers: mine };
+}
+
+function dossierGetById_(id, session) {
+  var found = findRow_("docmod_dossiers", function (d) {
+    return String(d.id) === String(id);
+  });
+  if (!found) throw new Error("Dossier introuvable");
+  assertOwnership_(found.data, session);
+
+  var sources = readTable_("docmod_documents_source").filter(function (s) {
+    return String(s.dossier_id) === String(id);
+  });
+
+  return { dossier: found.data, sources: sources };
+}
+
+function getOwnedDossierRow_(id, session) {
+  var found = findRow_("docmod_dossiers", function (d) {
+    return String(d.id) === String(id);
+  });
+  if (!found) throw new Error("Dossier introuvable");
+  assertOwnership_(found.data, session);
+  return found;
+}
+
+function assertOwnership_(dossier, session) {
+  if (session.role !== "admin" && String(dossier.user_id) !== String(session.sub)) {
+    throw new Error("Accès refusé");
+  }
+}
+
+/** Compteur atomique en table settings (clé "docmod_counter") — un seul lock, pas d'imbrication. */
+function nextDossierNumero_() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var found = findRow_("settings", function (s) {
+      return s.cle === "docmod_counter";
+    });
+    var next = found ? parseInt(found.data.valeur, 10) + 1 : 1;
+
+    if (found) {
+      updateRowUnlocked_("settings", found.sheetRow, { valeur: String(next) });
+    } else {
+      appendRowUnlocked_("settings", { cle: "docmod_counter", valeur: String(next) });
+    }
+
+    return "ND-" + new Date().getFullYear() + "-" + ("0000" + next).slice(-4);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function logHistorique_(dossierId, action, userId, detail) {
+  appendRow_("docmod_historique", {
+    id: Utilities.getUuid(),
+    dossier_id: dossierId,
+    action: action,
+    user_id: userId,
+    date: new Date().toISOString(),
+    detail: detail || "",
+  });
+}
+
+function guessDocType_(mimeType) {
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType.indexOf("word") !== -1 || mimeType.indexOf("officedocument.wordprocessingml") !== -1) return "word";
+  if (mimeType.indexOf("image/") === 0) return "image";
+  return "autre";
+}

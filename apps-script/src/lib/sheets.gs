@@ -38,15 +38,20 @@ function appendRow_(name, rowObject) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    var sheet = getTable_(name);
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var row = headers.map(function (h) {
-      return rowObject[h] !== undefined ? rowObject[h] : "";
-    });
-    sheet.appendRow(row);
+    appendRowUnlocked_(name, rowObject);
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Variante sans verrou — à utiliser uniquement depuis un appelant qui tient déjà le lock. */
+function appendRowUnlocked_(name, rowObject) {
+  var sheet = getTable_(name);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var row = headers.map(function (h) {
+    return rowObject[h] !== undefined ? rowObject[h] : "";
+  });
+  sheet.appendRow(row);
 }
 
 /**
@@ -71,17 +76,22 @@ function updateRow_(name, sheetRow, patch) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    var sheet = getTable_(name);
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var current = rowToObject_(headers, sheet.getRange(sheetRow, 1, 1, headers.length).getValues()[0]);
-    var merged = Object.assign({}, current, patch);
-    var row = headers.map(function (h) {
-      return merged[h] !== undefined ? merged[h] : "";
-    });
-    sheet.getRange(sheetRow, 1, 1, row.length).setValues([row]);
+    updateRowUnlocked_(name, sheetRow, patch);
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Variante sans verrou — à utiliser uniquement depuis un appelant qui tient déjà le lock. */
+function updateRowUnlocked_(name, sheetRow, patch) {
+  var sheet = getTable_(name);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var current = rowToObject_(headers, sheet.getRange(sheetRow, 1, 1, headers.length).getValues()[0]);
+  var merged = Object.assign({}, current, patch);
+  var row = headers.map(function (h) {
+    return merged[h] !== undefined ? merged[h] : "";
+  });
+  sheet.getRange(sheetRow, 1, 1, row.length).setValues([row]);
 }
 
 function deleteRow_(name, sheetRow) {

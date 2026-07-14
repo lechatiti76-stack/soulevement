@@ -57,6 +57,8 @@ npm run dev
 
 ## État d'avancement
 
-Phase 1 — authentification (login/JWT/rôles), shell protégé par middleware, sidebar filtrée par rôle. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
+Phase 2 — module "Nouvelle demande" : dépôt de document, formulaire dynamique manuel (texte, dates, listes, signature...), génération PDF à la validation. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
 
 **Non vérifié en conditions réelles** : cette machine ne dispose pas de Node.js/npm, donc `npm install`/`npm run dev` n'ont pas pu être exécutés, et aucun classeur Apps Script réel n'a encore été déployé. Le code suit les conventions Next.js 14 (App Router) et Apps Script mais n'a pas tourné.
+
+**Connu manquant en Phase 2** (voir [ARCHITECTURE.md §8](./ARCHITECTURE.md#8-génération-pdf)) : logo et QR code dans le PDF, photos/annexes incrustées — différés aux phases suivantes.
