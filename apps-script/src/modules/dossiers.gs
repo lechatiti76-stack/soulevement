@@ -1,6 +1,6 @@
 /**
- * Module "Nouvelle demande" : dépôt de document, extraction IA, formulaire, génération PDF.
- * Sans galerie photos/annexes ni archivage complet (Phase 4/5).
+ * Module "Nouvelle demande" : dépôt de document, extraction IA, formulaire, génération PDF,
+ * commentaires et historique. Sans galerie photos/annexes (Phase 5).
  * Cf. ARCHITECTURE.md §4, §6, §7.
  */
 
@@ -14,6 +14,7 @@ function dossiersHandlers_() {
     "dossiers.validate": dossiersValidate_,
     "dossiers.get": dossiersGet_,
     "dossiers.list": dossiersList_,
+    "dossiers.addComment": dossiersAddComment_,
   };
 }
 
@@ -154,6 +155,7 @@ function dossiersValidate_(body) {
     id: Utilities.getUuid(),
     numero_dossier: dossier.numero,
     module: DOSSIER_MODULE,
+    dossier_id: dossier.id,
     user_id: dossier.user_id,
     statut: "valide",
     date_creation: dossier.date_creation,
@@ -188,6 +190,30 @@ function dossiersList_(body) {
   return { dossiers: mine };
 }
 
+function dossiersAddComment_(body) {
+  var session = requireAuth_(body);
+  getOwnedDossierRow_(body.id, session);
+
+  var texte = String(body.texte || "").trim();
+  if (!texte) throw new Error("Commentaire vide");
+
+  var userRow = findRow_("users", function (u) {
+    return String(u.id) === String(session.sub);
+  });
+
+  appendRow_("docmod_commentaires", {
+    id: Utilities.getUuid(),
+    dossier_id: body.id,
+    user_id: session.sub,
+    texte: texte,
+    date: new Date().toISOString(),
+  });
+
+  logHistorique_(body.id, "commentaire", session.sub, "");
+
+  return dossierGetById_(body.id, session);
+}
+
 function dossierGetById_(id, session) {
   var found = findRow_("docmod_dossiers", function (d) {
     return String(d.id) === String(id);
@@ -204,7 +230,39 @@ function dossierGetById_(id, session) {
   });
   var extraction = extractions.length ? extractions[extractions.length - 1] : null;
 
-  return { dossier: found.data, sources: sources, extraction: extraction };
+  var usersById = indexById_(readTable_("users"));
+
+  var commentaires = readTable_("docmod_commentaires")
+    .filter(function (c) {
+      return String(c.dossier_id) === String(id);
+    })
+    .map(function (c) {
+      var user = usersById[c.user_id];
+      return Object.assign({}, c, { user_display: user ? user.prenom + " " + user.nom : c.user_id });
+    })
+    .sort(function (a, b) {
+      return String(a.date).localeCompare(String(b.date));
+    });
+
+  var historique = readTable_("docmod_historique")
+    .filter(function (h) {
+      return String(h.dossier_id) === String(id);
+    })
+    .map(function (h) {
+      var user = usersById[h.user_id];
+      return Object.assign({}, h, { user_display: user ? user.prenom + " " + user.nom : h.user_id });
+    })
+    .sort(function (a, b) {
+      return String(b.date).localeCompare(String(a.date));
+    });
+
+  return {
+    dossier: found.data,
+    sources: sources,
+    extraction: extraction,
+    commentaires: commentaires,
+    historique: historique,
+  };
 }
 
 function getOwnedDossierRow_(id, session) {

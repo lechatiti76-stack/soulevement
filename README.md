@@ -45,9 +45,9 @@ Puis, dans l'éditeur Apps Script (Paramètres du projet → Propriétés du scr
 
 Activer aussi le service avancé **Drive API** (v2) dans l'éditeur Apps Script (Services → `+` → Drive API) — nécessaire à la conversion Word→PDF pour l'extraction IA ; la déclaration dans `appsscript.json` seule ne suffit pas toujours après un `clasp push`, à vérifier dans l'éditeur si `Drive` n'est pas reconnu.
 
-Exécuter ensuite, une fois, depuis l'éditeur Apps Script :
-1. `setupDatabase()` — crée le classeur Google Sheets et tous les onglets/en-têtes, et enregistre `DB_SPREADSHEET_ID`
-2. `seedAdminUser()` — crée le premier compte administrateur (`admin` / `ChangeMoi123!`, à changer immédiatement)
+Exécuter ensuite depuis l'éditeur Apps Script :
+1. `setupDatabase()` — crée le classeur Google Sheets et tous les onglets/en-têtes, et enregistre `DB_SPREADSHEET_ID`. Ré-exécutable sans risque après un `git pull` : ajoute les colonnes manquantes en fin de ligne sur les onglets déjà peuplés, sans toucher aux données existantes (utile quand le schéma évolue d'une phase à l'autre).
+2. `seedAdminUser()` — une seule fois, crée le premier compte administrateur (`admin` / `ChangeMoi123!`, à changer immédiatement)
 
 Enfin :
 
@@ -56,6 +56,8 @@ clasp deploy
 ```
 
 Récupérer l'URL du déploiement Web App (`/exec`) pour `APPS_SCRIPT_URL` côté frontend.
+
+**Mises à jour ultérieures** : `clasp push` seul ne suffit pas — il met à jour le code "HEAD" mais pas ce que sert l'URL `/exec` déployée. Pour republier sur la **même** URL (sans changer `APPS_SCRIPT_URL` côté frontend), redéployer sur le même `deploymentId` : `clasp deploy --deploymentId <id> --description "..."` (`clasp deployments` liste les déploiements existants et leurs ID).
 
 ## Démarrage — frontend
 
@@ -68,10 +70,12 @@ npm run dev
 
 ## État d'avancement
 
-Phases 0 à 3 **vérifiées de bout en bout en conditions réelles** (2026-07-15) : Node.js installé, backend déployé sur un vrai projet Apps Script, base Sheets initialisée, compte admin créé, et parcours complet testé (navigateur + appels directs) — login, création de dossier, upload Drive, formulaire, validation, **génération PDF réelle confirmée**. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
+Phases 0 à 4 **vérifiées de bout en bout en conditions réelles** (2026-07-15) : Node.js installé, backend déployé sur un vrai projet Apps Script, base Sheets initialisée, compte admin créé, et parcours complet testé (navigateur + appels directs) — login, création de dossier, upload Drive, formulaire, validation, **génération PDF réelle confirmée**, recherche/filtre/tri des archives, commentaires, historique. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
 
-Un vrai bug trouvé et corrigé pendant cette vérification : le token d'accès (15 min) ne se renouvelait jamais malgré un refresh token valide 30 jours — corrigé en Phase 3 par un renouvellement silencieux dans `web/src/middleware.ts` (cf. [ARCHITECTURE.md §6](./ARCHITECTURE.md#6-api-apps-script-web-app)).
+Deux vrais bugs trouvés et corrigés pendant cette vérification :
+- Le token d'accès (15 min) ne se renouvelait jamais malgré un refresh token valide 30 jours — corrigé par un renouvellement silencieux dans `web/src/middleware.ts` (cf. [ARCHITECTURE.md §6](./ARCHITECTURE.md#6-api-apps-script-web-app)).
+- `archives_index` ne référençait pas l'identifiant interne du dossier (`dossier_id`), rendant impossible le lien "voir le dossier" depuis la liste d'archives — colonne ajoutée, `setupDatabase()` rendu ré-exécutable pour ce genre de migration de schéma sans perte de données.
 
 **Encore incertain** : l'extraction IA a atteint l'API OpenAI et reçu une erreur propre (quota compte dépassé, 429) — le format de requête est donc valide, mais le parsing de la réponse réelle (JSON structuré) n'a pas encore été exercé faute de quota disponible au moment du test. La conversion Word→PDF (`convertWordToPdfBase64_`) n'a été testée qu'avec une image, pas un vrai `.docx`.
 
-**Connu manquant** (voir [ARCHITECTURE.md §8](./ARCHITECTURE.md#8-génération-pdf)) : logo et QR code dans le PDF, photos/annexes incrustées — différés aux phases suivantes.
+**Connu manquant** : logo et QR code dans le PDF, photos/annexes incrustées (voir [ARCHITECTURE.md §8](./ARCHITECTURE.md#8-génération-pdf)) ; export Excel/XLSX des archives (CSV seulement pour l'instant) — différés aux phases suivantes.

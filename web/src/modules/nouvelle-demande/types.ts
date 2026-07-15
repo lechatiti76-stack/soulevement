@@ -30,10 +30,31 @@ export type Extraction = {
   statut: ExtractionStatut;
 };
 
+export type Commentaire = {
+  id: string;
+  dossier_id: string;
+  user_id: string;
+  user_display: string;
+  texte: string;
+  date: string;
+};
+
+export type HistoriqueEntry = {
+  id: string;
+  dossier_id: string;
+  action: string;
+  user_id: string;
+  user_display: string;
+  date: string;
+  detail: string;
+};
+
 export type DossierWithSources = {
   dossier: Dossier;
   sources: DocumentSource[];
   extraction: Extraction | null;
+  commentaires: Commentaire[];
+  historique: HistoriqueEntry[];
 };
 
 export type ExtractionResult = {

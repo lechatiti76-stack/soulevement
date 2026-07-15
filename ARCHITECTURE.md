@@ -70,7 +70,7 @@ Un classeur unique, un onglet par table.
 | `sessions` | id, user_id, refresh_token_hash, user_agent, ip, created_at, expires_at |
 | `login_log` | id, user_id, identifiant, date, succes (bool) |
 | `activity_log` | id, user_id, module, action, cible_id, date, detail |
-| `archives_index` | id, numero_dossier, module, user_id, statut, date_creation, date_validation, pdf_url |
+| `archives_index` | id, numero_dossier, module, dossier_id, user_id, statut, date_creation, date_validation, pdf_url |
 | `settings` | clé, valeur (logo_url, nom_app, couleurs, etc.) |
 
 **Tables du module "Nouvelle demande"**
@@ -118,11 +118,12 @@ Un seul déploiement Web App, routage par `action` dans le corps JSON (Apps Scri
 | `auth.logout` | POST | authentifié | Invalide la session |
 | `users.list/create/update/delete` | POST | admin | CRUD utilisateurs |
 | `dossiers.create` | POST | utilisateur | Crée un dossier + upload document source |
-| `dossiers.extractIA` | POST | utilisateur | Lance l'extraction IA (asynchrone, cf §7) |
+| `dossiers.extractIA` | POST | utilisateur | Lance l'extraction IA (synchrone, cf §7) |
 | `dossiers.updateForm` | POST | utilisateur | Sauvegarde le formulaire modifié |
 | `dossiers.validate` | POST | utilisateur | Valide → déclenche génération PDF + archivage |
-| `dossiers.get/list` | POST | utilisateur/admin | Consultation (filtrée par rôle) |
-| `archives.search` | POST | utilisateur/admin | Recherche/filtre/tri sur `archives_index` |
+| `dossiers.get/list` | POST | utilisateur/admin | Consultation (filtrée par rôle) — inclut sources, extraction, commentaires, historique |
+| `dossiers.addComment` | POST | utilisateur/admin | Ajoute un commentaire sur un dossier (propriétaire ou admin) |
+| `archives.search` | POST | utilisateur/admin | Recherche/filtre/tri sur `archives_index` (filtré par rôle) |
 | `stats.summary` | POST | utilisateur/admin | Agrégats pour le dashboard et la page statistiques |
 | `settings.get/update` | POST | admin | Paramètres globaux |
 
@@ -237,7 +238,7 @@ src/
 | 1 | Authentification (login, JWT, rôles), shell + dashboard vide, menu latéral | Vérifié |
 | 2 | Module "Nouvelle demande" : upload document + formulaire dynamique **manuel** (sans IA) + génération PDF basique | Vérifié |
 | 3 | Intégration IA (extraction automatique, pré-remplissage) | Partiellement vérifié (requête OpenAI valide, parsing réponse non exercé — quota compte) |
-| 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | À faire |
+| 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | Vérifié (export CSV seulement, pas XLSX) |
 | 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | À faire |
 | 6 | Notifications, paramètres admin, PWA, mode sombre, polish animations | À faire |
 | 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | À faire |

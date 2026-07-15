@@ -43,3 +43,10 @@ export function validateDossier(id: string) {
     method: "POST",
   });
 }
+
+export function addComment(id: string, texte: string) {
+  return request<DossierWithSources>(`/api/dossiers/${id}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ texte }),
+  });
+}

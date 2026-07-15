@@ -1,7 +1,8 @@
 /**
- * À exécuter manuellement, une seule fois, depuis l'éditeur Apps Script pour
- * initialiser le classeur de base de données (crée les onglets/en-têtes s'ils
- * n'existent pas encore). N'est jamais exposé via l'API web.
+ * À exécuter manuellement depuis l'éditeur Apps Script pour initialiser (ou mettre à jour)
+ * le classeur de base de données : crée les onglets/en-têtes manquants, et ajoute en fin de
+ * ligne les colonnes manquantes sur les onglets déjà existants sans toucher aux données
+ * (re-exécutable sans risque à chaque évolution de schéma). N'est jamais exposé via l'API web.
  * Cf. ARCHITECTURE.md §4 pour le détail des tables.
  */
 function setupDatabase() {
@@ -24,7 +25,7 @@ function setupDatabase() {
     login_log: ["id", "user_id", "identifiant", "date", "succes"],
     activity_log: ["id", "user_id", "module", "action", "cible_id", "date", "detail"],
     archives_index: [
-      "id", "numero_dossier", "module", "user_id", "statut",
+      "id", "numero_dossier", "module", "dossier_id", "user_id", "statut",
       "date_creation", "date_validation", "pdf_url",
     ],
     settings: ["cle", "valeur"],
@@ -53,9 +54,26 @@ function setupDatabase() {
 
 function ensureSheet_(ss, name, headers) {
   var sheet = ss.getSheetByName(name);
-  if (!sheet) sheet = ss.insertSheet(name);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    return;
+  }
+
   if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
+    return;
+  }
+
+  // Onglet déjà peuplé : ajoute en fin de ligne les colonnes du schéma qui n'existent pas encore.
+  var existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var missing = headers.filter(function (h) {
+    return existing.indexOf(h) === -1;
+  });
+  if (missing.length) {
+    sheet.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
   }
 }
