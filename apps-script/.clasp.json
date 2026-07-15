@@ -1,4 +1,16 @@
 {
-  "scriptId": "REMPLIR_APRES_CLASP_CREATE",
-  "rootDir": "src"
+  "scriptId": "1TvnV_JiU0SQRgIethVke6t8rH4jlZyLRUSsBoiySowcSvj0rIUom4WPZ",
+  "rootDir": "src",
+  "scriptExtensions": [
+    ".js",
+    ".gs"
+  ],
+  "htmlExtensions": [
+    ".html"
+  ],
+  "jsonExtensions": [
+    ".json"
+  ],
+  "filePushOrder": [],
+  "skipSubdirectories": false
 }

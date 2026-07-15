@@ -18,6 +18,9 @@ web/.env*.local
 apps-script/.clasprc.json
 apps-script/build/
 
+# Fichiers de test locaux (cookies de session curl, etc.)
+cookies.txt
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

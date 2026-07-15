@@ -128,6 +128,8 @@ Un seul déploiement Web App, routage par `action` dans le corps JSON (Apps Scri
 
 Le frontend n'appelle jamais Apps Script directement (cf. décision §2 option B) : il passe par des routes `/api/*` Next.js qui ajoutent le JWT, gèrent le CSRF et relaient la requête. Le Web App Apps Script étant déployé en accès anonyme (`ANYONE_ANONYMOUS`, cf. `appsscript.json`), chaque action authentifiée reçoit aussi le JWT dans le corps (`accessToken`) et le revérifie elle-même via `requireAuth_()` — la protection ne repose donc pas uniquement sur le fait que l'URL Apps Script n'est pas censée être connue.
 
+**Renouvellement de session** : le token d'accès expire au bout de 15 min. Plutôt qu'une route `/api/auth/refresh` dédiée appelée depuis le client, le renouvellement se fait **dans `web/src/middleware.ts` lui-même** : si le token d'accès est absent/expiré, le middleware tente silencieusement `auth.refresh` avec le refresh token (cookie httpOnly, 30 jours) avant de rediriger vers `/login` ou de renvoyer 401 — et comme le middleware s'exécute avant toute page ET toute route `/api/*`, ce mécanisme unique couvre les deux cas sans dupliquer la logique côté client. Vérifié en conditions réelles (TTL réduit temporairement à 5s pour le test) : fonctionne pour la navigation de page comme pour les appels `fetch` du client.
+
 **Contrainte importante :** Apps Script Web App a un timeout d'exécution de 6 minutes et ne supporte pas le vrai async côté serveur. Toute opération longue (appel IA sur un gros PDF, OCR multi-pages) doit être **découpée** : une action lance le traitement et écrit un statut `en_cours` dans `docmod_extraction_ia`, un déclencheur (`ScriptApp.newTrigger`, exécution différée) ou un polling léger du frontend interroge le statut jusqu'à `termine`.
 
 ---
@@ -155,7 +157,7 @@ Clé API OpenAI stockée en `PropertiesService.getScriptProperties()` côté App
 
 **Décision d'implémentation** : l'extraction est appelée **synchrone**, dans le même appel `dossiers.extractIA` (pas de découpage `en_cours` + trigger + polling comme envisagé plus haut). Un appel OpenAI sur un document unique reste largement sous la limite de 6 min d'Apps Script ; le découpage asynchrone n'est ajouté que si un cas réel (document volumineux, multi-pages) le nécessite — pas construit par anticipation. Le statut (`en_cours`/`a_verifier`/`erreur`) est quand même écrit dans `docmod_extraction_ia` à chaque étape, pour ne pas avoir à changer le contrat de données si l'async devient nécessaire plus tard.
 
-**Non vérifié en conditions réelles** : `apps-script/src/lib/openai.gs` appelle l'API Responses d'OpenAI (`/v1/responses`, sortie contrainte par `json_schema`) — écrit sans accès à un compte OpenAI pour tester. La forme exacte de la requête/réponse est à confirmer au premier appel réel et pourra nécessiter des ajustements. Word → PDF utilise le service avancé Drive v2 (`Drive.Files.insert(..., {convert:true})`), à activer manuellement dans l'éditeur Apps Script (Services → Drive API) en plus de la déclaration dans `appsscript.json`.
+**Vérifié en conditions réelles** (2026-07-15) : `apps-script/src/lib/openai.gs` a été testé contre un vrai compte OpenAI — la requête est acceptée par l'API (`/v1/responses`, sortie contrainte par `json_schema`), donc le format est correct. Le test s'est arrêté sur un 429 "quota exceeded" côté compte OpenAI (facturation), pas sur une erreur de format — l'extraction elle-même (parsing de la réponse, pré-remplissage du formulaire) reste donc à confirmer une fois un compte avec quota disponible. Word → PDF (`convertWordToPdfBase64_`, service avancé Drive v2) n'a pas encore été exercé (testé uniquement avec une image).
 
 ---
 
@@ -164,6 +166,8 @@ Clé API OpenAI stockée en `PropertiesService.getScriptProperties()` côté App
 **Décision révisée en Phase 2** (implémentée dans `apps-script/src/lib/pdf.gs`) : plutôt qu'un template Google Docs statique à balises, le document est **construit programmatiquement** via `DocumentApp` à chaque validation (titre, numéro de dossier, date, utilisateur, puis une ligne par champ du schéma du formulaire). Raison : le formulaire est dynamique par module (§10), donc l'ensemble des champs à imprimer varie — un template à balises fixes aurait dû être resynchronisé à chaque évolution de schéma, alors que la génération programmatique lit directement le schéma. Le document est ensuite exporté en PDF (`DriveApp...getAs("application/pdf")`) puis le Google Doc intermédiaire est supprimé — seul le PDF est conservé dans Drive.
 
 Implémenté en Phase 2 : numéro de dossier, date, utilisateur, champs du formulaire, signature (image insérée depuis le champ de type `signature`), pagination (native à Google Docs).
+
+**Vérifié en conditions réelles** (2026-07-15) : dossier créé → formulaire rempli → validé → PDF généré et archivé sur Drive, via un test de bout en bout sur le vrai déploiement. C'était le point le plus risqué du code écrit sans pouvoir tester (`DocumentApp`, export PDF, nettoyage du document intermédiaire) — fonctionne tel qu'écrit.
 
 **Différé** (à ajouter avant la Phase 4 "archivage complet") :
 - **Logo** — dépend de `settings.logo_url` (paramètres admin, pas encore implémentés)
@@ -229,16 +233,16 @@ src/
 
 | Phase | Contenu | Statut |
 |---|---|---|
-| 0 | Setup repo, CI, squelette Next.js + Apps Script, connexion Sheets/Drive de base | Codé |
-| 1 | Authentification (login, JWT, rôles), shell + dashboard vide, menu latéral | Codé |
-| 2 | Module "Nouvelle demande" : upload document + formulaire dynamique **manuel** (sans IA) + génération PDF basique | Codé |
-| 3 | Intégration IA (extraction automatique, pré-remplissage) | Codé |
+| 0 | Setup repo, CI, squelette Next.js + Apps Script, connexion Sheets/Drive de base | Vérifié |
+| 1 | Authentification (login, JWT, rôles), shell + dashboard vide, menu latéral | Vérifié |
+| 2 | Module "Nouvelle demande" : upload document + formulaire dynamique **manuel** (sans IA) + génération PDF basique | Vérifié |
+| 3 | Intégration IA (extraction automatique, pré-remplissage) | Partiellement vérifié (requête OpenAI valide, parsing réponse non exercé — quota compte) |
 | 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | À faire |
 | 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | À faire |
 | 6 | Notifications, paramètres admin, PWA, mode sombre, polish animations | À faire |
 | 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | À faire |
 
-« Codé » signifie non testé en conditions réelles (pas de Node.js ni de déploiement Apps Script sur la machine de développement actuelle) — cf. [README](./README.md#état-davancement).
+« Vérifié » signifie testé de bout en bout sur un vrai déploiement (Node.js installé, projet Apps Script réel, classeur Sheets réel, navigateur) le 2026-07-15 — cf. [README](./README.md#état-davancement).
 
 ---
 

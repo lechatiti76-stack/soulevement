@@ -22,10 +22,19 @@ soulevement/
 
 ## Démarrage — backend Apps Script
 
+Avant `clasp create` : activer l'API Google Apps Script sur le compte Google utilisé, sur https://script.google.com/home/usersettings (sinon `clasp create`/`clasp login` échoue avec "Insufficient Permission" ou "User has not enabled the Apps Script API" — le changement peut prendre quelques minutes à se propager).
+
 ```bash
 cd apps-script
 clasp login
-clasp create --type webapp --title "Soulèvement API"   # génère .clasp.json avec le scriptId
+clasp create --type standalone --title "Soulèvement API" --rootDir ./src   # génère .clasp.json avec le scriptId
+```
+
+`--type webapp` échoue ("Invalid container file type") avec les versions récentes de clasp — utiliser `standalone` : le comportement Web App vient du bloc `webapp` dans `appsscript.json` et du déploiement (`clasp deploy`), pas du type choisi à la création.
+
+**`clasp create` écrase `src/appsscript.json`** avec un manifeste par défaut (fuseau horaire, pas de config `webapp`) : restaurer notre version avant de pousser, ex. `git checkout -- apps-script/src/appsscript.json`.
+
+```bash
 clasp push
 ```
 
@@ -59,8 +68,10 @@ npm run dev
 
 ## État d'avancement
 
-Phase 3 — extraction IA automatique (OpenAI, API Responses) à l'upload d'un document, pré-remplissage du formulaire, correction manuelle toujours possible. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
+Phases 0 à 3 **vérifiées de bout en bout en conditions réelles** (2026-07-15) : Node.js installé, backend déployé sur un vrai projet Apps Script, base Sheets initialisée, compte admin créé, et parcours complet testé (navigateur + appels directs) — login, création de dossier, upload Drive, formulaire, validation, **génération PDF réelle confirmée**. Voir la roadmap dans [ARCHITECTURE.md](./ARCHITECTURE.md#12-roadmap-de-livraison-proposée).
 
-**Non vérifié en conditions réelles** : cette machine ne dispose pas de Node.js/npm ni d'accès à un compte Google/OpenAI, donc rien n'a pu être exécuté. Le code suit les conventions Next.js 14 (App Router) et Apps Script, et la forme de la requête OpenAI est écrite d'après la documentation connue — à confirmer et corriger si besoin au premier appel réel (cf. [ARCHITECTURE.md §7](./ARCHITECTURE.md#7-pipeline-ia-documentaire)).
+Un vrai bug trouvé et corrigé pendant cette vérification : le token d'accès (15 min) ne se renouvelait jamais malgré un refresh token valide 30 jours — corrigé en Phase 3 par un renouvellement silencieux dans `web/src/middleware.ts` (cf. [ARCHITECTURE.md §6](./ARCHITECTURE.md#6-api-apps-script-web-app)).
+
+**Encore incertain** : l'extraction IA a atteint l'API OpenAI et reçu une erreur propre (quota compte dépassé, 429) — le format de requête est donc valide, mais le parsing de la réponse réelle (JSON structuré) n'a pas encore été exercé faute de quota disponible au moment du test. La conversion Word→PDF (`convertWordToPdfBase64_`) n'a été testée qu'avec une image, pas un vrai `.docx`.
 
 **Connu manquant** (voir [ARCHITECTURE.md §8](./ARCHITECTURE.md#8-génération-pdf)) : logo et QR code dans le PDF, photos/annexes incrustées — différés aux phases suivantes.
