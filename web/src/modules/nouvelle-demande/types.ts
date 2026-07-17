@@ -1,3 +1,5 @@
+import type { Annexe } from "@/lib/annexes";
+
 export type DossierStatut = "brouillon" | "en_attente" | "valide" | "archive";
 
 export type Dossier = {
@@ -55,6 +57,7 @@ export type DossierWithSources = {
   extraction: Extraction | null;
   commentaires: Commentaire[];
   historique: HistoriqueEntry[];
+  annexes: Annexe[];
 };
 
 export type ExtractionResult = {

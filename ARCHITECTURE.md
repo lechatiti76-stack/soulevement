@@ -105,6 +105,8 @@ Un classeur unique, un onglet par table.
 
 Chaque fichier Drive est référencé dans Sheets par son `drive_file_id`, jamais par chemin (les IDs Drive sont stables, les chemins non).
 
+**Galerie photos / pièces jointes (Phase 5)** : chaque annexe expose trois URLs calculées à la volée (`driveUrls_()` dans `annexes.gs`) — `thumbnail_url` (`drive.google.com/thumbnail?id=...`), `view_url`, `download_url`. **Limite connue** : les fichiers sont créés sous le compte qui exécute le script (`executeAs: USER_DEPLOYING`) ; ces URLs fonctionnent pour ce compte et pour qui le fichier a été explicitement partagé côté Drive, mais rien ne garantit qu'un autre utilisateur de l'app puisse voir la miniature sans partage. Non résolu — nécessiterait soit un partage automatique du dossier racine (compromis vie privée à valider avec vous), soit un proxy d'images côté backend. Le frontend masque l'image si elle ne charge pas (`onError`) plutôt que de casser la mise en page.
+
 ---
 
 ## 6. API (Apps Script Web App)
@@ -121,8 +123,11 @@ Un seul déploiement Web App, routage par `action` dans le corps JSON (Apps Scri
 | `dossiers.extractIA` | POST | utilisateur | Lance l'extraction IA (synchrone, cf §7) |
 | `dossiers.updateForm` | POST | utilisateur | Sauvegarde le formulaire modifié |
 | `dossiers.validate` | POST | utilisateur | Valide → déclenche génération PDF + archivage |
-| `dossiers.get/list` | POST | utilisateur/admin | Consultation (filtrée par rôle) — inclut sources, extraction, commentaires, historique |
+| `dossiers.get/list` | POST | utilisateur/admin | Consultation (filtrée par rôle) — inclut sources, extraction, commentaires, historique, annexes |
 | `dossiers.addComment` | POST | utilisateur/admin | Ajoute un commentaire sur un dossier (propriétaire ou admin) |
+| `dossiers.addAnnexe` | POST | utilisateur/admin | Ajoute une photo ou pièce jointe à un dossier |
+| `dossiers.deleteAnnexe` | POST | utilisateur/admin | Supprime une annexe (Drive + ligne Sheets) |
+| `annexes.list` | POST | utilisateur/admin | Vue transverse de toutes les annexes d'un type, tous dossiers confondus, filtrée par rôle |
 | `archives.search` | POST | utilisateur/admin | Recherche/filtre/tri sur `archives_index` (filtré par rôle) |
 | `stats.summary` | POST | utilisateur/admin | Agrégats pour le dashboard et la page statistiques |
 | `settings.get/update` | POST | admin | Paramètres globaux |
@@ -239,11 +244,11 @@ src/
 | 2 | Module "Nouvelle demande" : upload document + formulaire dynamique **manuel** (sans IA) + génération PDF basique | Vérifié |
 | 3 | Intégration IA (extraction automatique, pré-remplissage) | Partiellement vérifié (requête OpenAI valide, parsing réponse non exercé — quota compte) |
 | 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | Vérifié (export CSV seulement, pas XLSX) |
-| 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | À faire |
+| 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | Vérifié (calendrier : vues Mois/Agenda seulement, Jour/Semaine différées ; miniatures photo non garanties multi-utilisateur, cf. §5) |
 | 6 | Notifications, paramètres admin, PWA, mode sombre, polish animations | À faire |
 | 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | À faire |
 
-« Vérifié » signifie testé de bout en bout sur un vrai déploiement (Node.js installé, projet Apps Script réel, classeur Sheets réel, navigateur) le 2026-07-15 — cf. [README](./README.md#état-davancement).
+« Vérifié » signifie testé de bout en bout sur un vrai déploiement (Node.js installé, projet Apps Script réel, classeur Sheets réel, navigateur) les 2026-07-15 et 2026-07-16 — cf. [README](./README.md#état-davancement).
 
 ---
 

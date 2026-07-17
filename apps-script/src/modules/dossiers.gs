@@ -256,12 +256,24 @@ function dossierGetById_(id, session) {
       return String(b.date).localeCompare(String(a.date));
     });
 
+  var annexes = readTable_("docmod_annexes")
+    .filter(function (a) {
+      return String(a.dossier_id) === String(id);
+    })
+    .map(function (a) {
+      return Object.assign({}, a, driveUrls_(a.drive_file_id));
+    })
+    .sort(function (a, b) {
+      return String(b.date_ajout).localeCompare(String(a.date_ajout));
+    });
+
   return {
     dossier: found.data,
     sources: sources,
     extraction: extraction,
     commentaires: commentaires,
     historique: historique,
+    annexes: annexes,
   };
 }
 

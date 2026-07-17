@@ -3,8 +3,15 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { addComment, getDossier } from "@/modules/nouvelle-demande/api";
+import {
+  addAnnexe,
+  addComment,
+  deleteAnnexe,
+  getDossier,
+} from "@/modules/nouvelle-demande/api";
+import { AnnexeUpload } from "@/modules/nouvelle-demande/components/AnnexeUpload";
 import { dossierSchema } from "@/modules/nouvelle-demande/schema";
+import { PhotoLightbox } from "@/components/ui/PhotoLightbox";
 
 const ACTION_LABELS: Record<string, string> = {
   creation: "Dossier créé",
@@ -12,6 +19,9 @@ const ACTION_LABELS: Record<string, string> = {
   modification_formulaire: "Formulaire modifié",
   validation: "Dossier validé",
   commentaire: "Commentaire ajouté",
+  ajout_photo: "Photo ajoutée",
+  ajout_piece_jointe: "Pièce jointe ajoutée",
+  suppression_annexe: "Annexe supprimée",
 };
 
 export default function DossierDetailPage() {
@@ -19,11 +29,16 @@ export default function DossierDetailPage() {
   const queryClient = useQueryClient();
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["dossier", params.id],
     queryFn: () => getDossier(params.id),
   });
+
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: ["dossier", params.id] });
+  }
 
   async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
@@ -32,10 +47,22 @@ export default function DossierDetailPage() {
     try {
       await addComment(params.id, comment.trim());
       setComment("");
-      queryClient.invalidateQueries({ queryKey: ["dossier", params.id] });
+      refresh();
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleAddFiles(type: "photo" | "piece_jointe", files: { fileBase64: string; fileName: string; mimeType: string }[]) {
+    for (const file of files) {
+      await addAnnexe(params.id, type, file);
+    }
+    refresh();
+  }
+
+  async function handleDeleteAnnexe(annexeId: string) {
+    await deleteAnnexe(params.id, annexeId);
+    refresh();
   }
 
   if (isLoading) return <p className="text-sm text-[rgb(var(--text-muted))]">Chargement...</p>;
@@ -43,6 +70,8 @@ export default function DossierDetailPage() {
   if (!data) return null;
 
   const formData = JSON.parse(data.dossier.form_data || "{}");
+  const photos = data.annexes.filter((a) => a.type === "photo");
+  const pieces = data.annexes.filter((a) => a.type === "piece_jointe");
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -72,6 +101,95 @@ export default function DossierDetailPage() {
             </div>
           ))}
       </div>
+
+      <section className="space-y-3 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elevated))] p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Photos</h2>
+          <AnnexeUpload
+            accept="image/*"
+            label="+ Ajouter des photos"
+            onFilesSelected={(files) => handleAddFiles("photo", files)}
+          />
+        </div>
+
+        {photos.length === 0 ? (
+          <p className="text-sm text-[rgb(var(--text-muted))]">Aucune photo pour le moment.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {photos.map((p, i) => (
+              <div key={p.id} className="group relative aspect-square overflow-hidden rounded-xl border border-[rgb(var(--border))]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.thumbnail_url}
+                  alt={p.nom}
+                  onClick={() => setLightboxIndex(i)}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                  className="h-full w-full cursor-pointer object-cover transition group-hover:opacity-80"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAnnexe(p.id)}
+                  className="absolute right-1 top-1 hidden rounded-full bg-black/60 px-1.5 py-0.5 text-xs text-white group-hover:block"
+                  aria-label="Supprimer la photo"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {lightboxIndex !== null && (
+        <PhotoLightbox
+          photos={photos}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
+
+      <section className="space-y-3 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elevated))] p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Pièces jointes</h2>
+          <AnnexeUpload
+            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.zip,.xlsx"
+            label="+ Ajouter un fichier"
+            onFilesSelected={(files) => handleAddFiles("piece_jointe", files)}
+          />
+        </div>
+
+        {pieces.length === 0 ? (
+          <p className="text-sm text-[rgb(var(--text-muted))]">Aucune pièce jointe pour le moment.</p>
+        ) : (
+          <ul className="space-y-2">
+            {pieces.map((p) => (
+              <li key={p.id} className="flex items-center justify-between text-sm">
+                <span>{p.nom}</span>
+                <span className="flex items-center gap-3">
+                  <a
+                    href={p.download_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-brand-600 hover:underline dark:text-brand-500"
+                  >
+                    Télécharger
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteAnnexe(p.id)}
+                    className="text-[rgb(var(--text-muted))] hover:text-red-500"
+                  >
+                    Supprimer
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="space-y-3 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elevated))] p-5">
         <h2 className="text-sm font-medium">Commentaires</h2>

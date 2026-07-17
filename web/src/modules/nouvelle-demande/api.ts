@@ -1,4 +1,5 @@
 import type { Dossier, DossierWithSources, ExtractionResult } from "./types";
+import type { AnnexeType } from "@/lib/annexes";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -48,5 +49,22 @@ export function addComment(id: string, texte: string) {
   return request<DossierWithSources>(`/api/dossiers/${id}/comments`, {
     method: "POST",
     body: JSON.stringify({ texte }),
+  });
+}
+
+export function addAnnexe(
+  id: string,
+  type: AnnexeType,
+  file: { fileBase64: string; fileName: string; mimeType: string }
+) {
+  return request<DossierWithSources>(`/api/dossiers/${id}/annexes`, {
+    method: "POST",
+    body: JSON.stringify({ type, ...file }),
+  });
+}
+
+export function deleteAnnexe(dossierId: string, annexeId: string) {
+  return request<DossierWithSources>(`/api/dossiers/${dossierId}/annexes/${annexeId}`, {
+    method: "DELETE",
   });
 }
