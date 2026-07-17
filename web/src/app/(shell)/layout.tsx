@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { LogoutButton } from "@/components/ui/LogoutButton";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { USER_COOKIE, type PublicUser } from "@/lib/session";
 
 function getUser(): PublicUser | null {
@@ -22,11 +23,14 @@ export default function ShellLayout({
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role={user?.role} />
+      <div className="print:hidden">
+        <Sidebar role={user?.role} />
+      </div>
       <div className="flex-1">
-        <header className="flex h-14 items-center justify-between border-b border-[rgb(var(--border))] px-6">
+        <header className="flex h-14 items-center justify-between border-b border-[rgb(var(--border))] px-6 print:hidden">
           <span className="text-sm text-[rgb(var(--text-muted))]">Espace de travail</span>
           <div className="flex items-center gap-3 text-sm">
+            <ThemeToggle />
             {user && (
               <span>
                 {user.prenom} {user.nom}

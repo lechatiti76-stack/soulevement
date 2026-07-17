@@ -12,6 +12,7 @@ import {
 import { AnnexeUpload } from "@/modules/nouvelle-demande/components/AnnexeUpload";
 import { dossierSchema } from "@/modules/nouvelle-demande/schema";
 import { PhotoLightbox } from "@/components/ui/PhotoLightbox";
+import { useToast } from "@/components/ui/Toast";
 
 const ACTION_LABELS: Record<string, string> = {
   creation: "Dossier créé",
@@ -27,6 +28,7 @@ const ACTION_LABELS: Record<string, string> = {
 export default function DossierDetailPage() {
   const params = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const { notify } = useToast();
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -47,22 +49,35 @@ export default function DossierDetailPage() {
     try {
       await addComment(params.id, comment.trim());
       setComment("");
+      notify("Commentaire ajouté", "success");
       refresh();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleAddFiles(type: "photo" | "piece_jointe", files: { fileBase64: string; fileName: string; mimeType: string }[]) {
-    for (const file of files) {
-      await addAnnexe(params.id, type, file);
+    try {
+      for (const file of files) {
+        await addAnnexe(params.id, type, file);
+      }
+      notify(type === "photo" ? "Photo ajoutée" : "Pièce jointe ajoutée", "success");
+      refresh();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
     }
-    refresh();
   }
 
   async function handleDeleteAnnexe(annexeId: string) {
-    await deleteAnnexe(params.id, annexeId);
-    refresh();
+    try {
+      await deleteAnnexe(params.id, annexeId);
+      notify("Annexe supprimée", "success");
+      refresh();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    }
   }
 
   if (isLoading) return <p className="text-sm text-[rgb(var(--text-muted))]">Chargement...</p>;
@@ -75,9 +90,18 @@ export default function DossierDetailPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Dossier {data.dossier.numero}</h1>
-        <p className="text-sm text-[rgb(var(--text-muted))]">Statut : {data.dossier.statut}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Dossier {data.dossier.numero}</h1>
+          <p className="text-sm text-[rgb(var(--text-muted))]">Statut : {data.dossier.statut}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="rounded-xl border border-[rgb(var(--border))] px-3 py-1.5 text-xs font-medium transition hover:border-brand-500 print:hidden"
+        >
+          Imprimer
+        </button>
       </div>
 
       {data.dossier.pdf_url && (
@@ -85,7 +109,7 @@ export default function DossierDetailPage() {
           href={data.dossier.pdf_url}
           target="_blank"
           rel="noreferrer"
-          className="inline-block rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+          className="inline-block rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 print:hidden"
         >
           Ouvrir le PDF
         </a>

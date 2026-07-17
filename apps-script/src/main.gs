@@ -56,6 +56,8 @@ function getModuleHandlers_() {
     dossiersHandlers_(),
     archivesHandlers_(),
     annexesHandlers_(),
-    statsHandlers_()
+    statsHandlers_(),
+    usersHandlers_(),
+    settingsHandlers_()
   );
 }

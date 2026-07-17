@@ -118,7 +118,8 @@ Un seul déploiement Web App, routage par `action` dans le corps JSON (Apps Scri
 | `auth.login` | POST | public | Vérifie identifiant/mdp, retourne JWT |
 | `auth.refresh` | POST | authentifié | Renouvelle le token |
 | `auth.logout` | POST | authentifié | Invalide la session |
-| `users.list/create/update/delete` | POST | admin | CRUD utilisateurs |
+| `users.list/create/update/delete` | POST | admin | CRUD utilisateurs — garde-fous : impossible de se supprimer soi-même ou de supprimer/rétrograder/désactiver le dernier admin actif |
+| `users.resetPassword` | POST | admin | Réinitialise le mot de passe d'un utilisateur (génère un mot de passe temporaire si non fourni) |
 | `dossiers.create` | POST | utilisateur | Crée un dossier + upload document source |
 | `dossiers.extractIA` | POST | utilisateur | Lance l'extraction IA (synchrone, cf §7) |
 | `dossiers.updateForm` | POST | utilisateur | Sauvegarde le formulaire modifié |
@@ -130,7 +131,8 @@ Un seul déploiement Web App, routage par `action` dans le corps JSON (Apps Scri
 | `annexes.list` | POST | utilisateur/admin | Vue transverse de toutes les annexes d'un type, tous dossiers confondus, filtrée par rôle |
 | `archives.search` | POST | utilisateur/admin | Recherche/filtre/tri sur `archives_index` (filtré par rôle) |
 | `stats.summary` | POST | utilisateur/admin | Agrégats pour le dashboard et la page statistiques |
-| `settings.get/update` | POST | admin | Paramètres globaux |
+| `settings.get` | POST | utilisateur/admin | Lecture des paramètres globaux (nom app, logo — affichés dans la sidebar pour tous) |
+| `settings.update` | POST | admin | Modification des paramètres globaux |
 
 Le frontend n'appelle jamais Apps Script directement (cf. décision §2 option B) : il passe par des routes `/api/*` Next.js qui ajoutent le JWT, gèrent le CSRF et relaient la requête. Le Web App Apps Script étant déployé en accès anonyme (`ANYONE_ANONYMOUS`, cf. `appsscript.json`), chaque action authentifiée reçoit aussi le JWT dans le corps (`accessToken`) et le revérifie elle-même via `requireAuth_()` — la protection ne repose donc pas uniquement sur le fait que l'URL Apps Script n'est pas censée être connue.
 
@@ -220,8 +222,9 @@ src/
 
 - Data fetching : TanStack Query (cache, revalidation, état de chargement uniforme)
 - Formulaire dynamique : schéma JSON déclaratif (type de champ, validation, valeur extraite IA) → un moteur de rendu générique interprète ce schéma (permet d'ajouter des types de champs sans redéployer un formulaire codé en dur)
-- Thème clair/sombre : Tailwind `dark:` + variable CSS, persistée en `localStorage`
-- PWA : `next-pwa`, manifest avec icônes, cache offline des pages shell (pas des données sensibles)
+- Thème clair/sombre : Tailwind `dark:` + variables CSS (`globals.css`), toggle dans le header (`ThemeToggle`), persisté en `localStorage`, script inline dans `<head>` pour appliquer la classe avant hydration (évite le flash du mauvais thème)
+- Notifications : toasts éphémères (`ToastProvider`/`useToast`, Framer Motion pour l'entrée/sortie), déclenchés sur validation, erreurs, ajout de commentaire/annexe, export — pas de centre de notifications persisté (hors scope Phase 6)
+- PWA : **pas de `next-pwa`** — manifest et service worker écrits à la main (`public/manifest.json`, `public/sw.js`, cache réseau-d'abord de l'app shell, jamais de `/api/*`). Icônes PNG générées par un script Node maison (`web/scripts/generate-icons.js`, zlib uniquement, aucun outil d'image externe sur la machine de dev) plutôt qu'une dépendance de génération d'images. Service worker enregistré uniquement en production (`NODE_ENV`) pour ne pas perturber le hot-reload en dev — **non testé en conditions réelles d'installation** (impossible de vérifier "Ajouter à l'écran d'accueil" dans cet environnement).
 
 ---
 
@@ -245,10 +248,14 @@ src/
 | 3 | Intégration IA (extraction automatique, pré-remplissage) | Partiellement vérifié (requête OpenAI valide, parsing réponse non exercé — quota compte) |
 | 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | Vérifié (export CSV seulement, pas XLSX) |
 | 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | Vérifié (calendrier : vues Mois/Agenda seulement, Jour/Semaine différées ; miniatures photo non garanties multi-utilisateur, cf. §5) |
-| 6 | Notifications, paramètres admin, PWA, mode sombre, polish animations | À faire |
+| 6 | Notifications, gestion des utilisateurs, paramètres admin (nom/logo), PWA, mode sombre | Vérifié (formulaires dynamiques admin et sauvegarde/import/export différés, cf. ci-dessous ; PWA non testée à l'installation) |
 | 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | À faire |
 
-« Vérifié » signifie testé de bout en bout sur un vrai déploiement (Node.js installé, projet Apps Script réel, classeur Sheets réel, navigateur) les 2026-07-15 et 2026-07-16 — cf. [README](./README.md#état-davancement).
+« Vérifié » signifie testé de bout en bout sur un vrai déploiement (Node.js installé, projet Apps Script réel, classeur Sheets réel, navigateur) les 2026-07-15 à 2026-07-17 — cf. [README](./README.md#état-davancement).
+
+**Gaps Phase 6 assumés** (pages `/utilisateurs` et `/parametres` existaient dans le menu depuis la Phase 0 sans aucune page ni backend derrière — corrigé cette phase ; `/formulaires` reste un lien mort, volontairement) :
+- Éditeur de formulaires (« Gestion des formulaires » du CDC) — nécessiterait de rendre le schéma de formulaire dynamique/piloté par base de données au lieu du fichier statique `schema.ts` actuel ; pas justifié tant qu'un seul module existe.
+- Sauvegarde/Import/Export génériques au niveau paramètres — l'export CSV des archives couvre déjà le besoin d'export le plus concret ; sauvegarde/restauration complète du classeur différée.
 
 ---
 

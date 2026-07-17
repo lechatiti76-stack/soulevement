@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { searchArchives, archivesToCsv, downloadCsv, type ArchiveSearchParams } from "@/lib/archives";
+import { useToast } from "@/components/ui/Toast";
 
 const STATUT_OPTIONS = [
   { value: "", label: "Tous les statuts" },
@@ -19,6 +20,7 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export default function ArchivesPage() {
+  const { notify } = useToast();
   const [query, setQuery] = useState("");
   const [statut, setStatut] = useState("");
   const [sort, setSort] = useState("date_creation:desc");
@@ -32,6 +34,7 @@ export default function ArchivesPage() {
   function handleExport() {
     if (!data?.archives.length) return;
     downloadCsv(`archives-${new Date().toISOString().slice(0, 10)}.csv`, archivesToCsv(data.archives));
+    notify("Export CSV téléchargé", "success");
   }
 
   return (
@@ -41,14 +44,23 @@ export default function ArchivesPage() {
           <h1 className="text-2xl font-semibold">Archives</h1>
           <p className="text-sm text-[rgb(var(--text-muted))]">Dossiers validés, toutes demandes confondues.</p>
         </div>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={!data?.archives.length}
-          className="rounded-xl border border-[rgb(var(--border))] px-4 py-2 text-sm font-medium transition hover:border-brand-500 disabled:opacity-50"
-        >
-          Exporter en CSV
-        </button>
+        <div className="flex gap-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-xl border border-[rgb(var(--border))] px-4 py-2 text-sm font-medium transition hover:border-brand-500"
+          >
+            Imprimer
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={!data?.archives.length}
+            className="rounded-xl border border-[rgb(var(--border))] px-4 py-2 text-sm font-medium transition hover:border-brand-500 disabled:opacity-50"
+          >
+            Exporter en CSV
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">

@@ -11,11 +11,13 @@ import {
   saveDossierForm,
   validateDossier,
 } from "@/modules/nouvelle-demande/api";
+import { useToast } from "@/components/ui/Toast";
 
 type Step = "upload" | "formulaire";
 
 export default function NouvelleDemandeWizardPage() {
   const router = useRouter();
+  const { notify } = useToast();
   const [step, setStep] = useState<Step>("upload");
   const [dossierId, setDossierId] = useState<string | null>(null);
   const [numero, setNumero] = useState<string | null>(null);
@@ -35,7 +37,9 @@ export default function NouvelleDemandeWizardPage() {
       setStep("formulaire");
       runExtraction(dossier.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      const message = err instanceof Error ? err.message : "Erreur";
+      setError(message);
+      notify(message, "error");
     } finally {
       setLoading(false);
     }
@@ -61,8 +65,11 @@ export default function NouvelleDemandeWizardPage() {
     setError(null);
     try {
       await saveDossierForm(dossierId, values);
+      notify("Brouillon enregistré", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      const message = err instanceof Error ? err.message : "Erreur";
+      setError(message);
+      notify(message, "error");
     } finally {
       setLoading(false);
     }
@@ -75,9 +82,12 @@ export default function NouvelleDemandeWizardPage() {
     try {
       await saveDossierForm(dossierId, values);
       await validateDossier(dossierId);
+      notify("Dossier validé — PDF généré", "success");
       router.push(`/modules/nouvelle-demande/${dossierId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      const message = err instanceof Error ? err.message : "Erreur";
+      setError(message);
+      notify(message, "error");
     } finally {
       setLoading(false);
     }
