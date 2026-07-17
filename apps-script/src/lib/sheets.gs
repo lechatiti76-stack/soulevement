@@ -23,6 +23,21 @@ function rowToObject_(headers, row) {
   return obj;
 }
 
+/**
+ * Neutralise l'injection de formule Google Sheets : une valeur utilisateur écrite via
+ * setValue()/setValues() est interprétée exactement comme une saisie manuelle — une chaîne
+ * commençant par =, +, -, @ (ou tabulation/retour chariot) deviendrait une formule live à
+ * l'ouverture du classeur. Un guillemet simple en préfixe force le texte littéral (convention
+ * Sheets native, invisible côté lecture : getValue() ne renvoie jamais l'apostrophe).
+ * Appliqué au point d'écriture (append/update) pour couvrir tous les champs sans devoir s'en
+ * souvenir à chaque appelant.
+ */
+function sanitizeForSheets_(value) {
+  if (typeof value !== "string") return value;
+  if (/^[=+\-@\t\r]/.test(value)) return "'" + value;
+  return value;
+}
+
 /** Lit une table entière et la retourne comme tableau d'objets (1re ligne = en-têtes). */
 function readTable_(name) {
   var sheet = getTable_(name);
@@ -49,7 +64,7 @@ function appendRowUnlocked_(name, rowObject) {
   var sheet = getTable_(name);
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var row = headers.map(function (h) {
-    return rowObject[h] !== undefined ? rowObject[h] : "";
+    return sanitizeForSheets_(rowObject[h] !== undefined ? rowObject[h] : "");
   });
   sheet.appendRow(row);
 }
@@ -89,7 +104,7 @@ function updateRowUnlocked_(name, sheetRow, patch) {
   var current = rowToObject_(headers, sheet.getRange(sheetRow, 1, 1, headers.length).getValues()[0]);
   var merged = Object.assign({}, current, patch);
   var row = headers.map(function (h) {
-    return merged[h] !== undefined ? merged[h] : "";
+    return sanitizeForSheets_(merged[h] !== undefined ? merged[h] : "");
   });
   sheet.getRange(sheetRow, 1, 1, row.length).setValues([row]);
 }

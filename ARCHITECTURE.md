@@ -186,12 +186,21 @@ Implémenté en Phase 2 : numéro de dossier, date, utilisateur, champs du formu
 
 ## 9. Sécurité
 
-- Mots de passe : hash + salt (PBKDF2/bcrypt via lib Apps Script, pas de mdp en clair dans Sheets)
-- JWT signé (HS256, secret en `ScriptProperties`), courte durée de vie + refresh token
-- CSRF : double-submit token sur les routes `/api/*` Next.js (le proxy §2-B le permet)
-- XSS : sanitization systématique des champs texte long avant rendu (React échappe par défaut, vigilance sur `dangerouslySetInnerHTML` — à ne jamais utiliser sur du contenu utilisateur)
-- Journal des connexions (`login_log`) et historique des modifications (`docmod_historique`, `activity_log`)
-- Sauvegarde automatique : export périodique du classeur Sheets (versions Drive natives) + copie datée hebdomadaire dans `/backups/`
+État réel (Phase 7, vérifié — pas la liste aspirationnelle de la Phase 0) :
+
+- **Mots de passe** : HMAC-SHA256 salé + poivré (`hashPassword_`/`verifyPassword_`, `lib/auth.gs`) — pas de mot de passe en clair dans Sheets. Salt par utilisateur + pepper global (`PASSWORD_PEPPER`, `ScriptProperties`).
+- **JWT** : HS256, secret en `ScriptProperties` (`JWT_SECRET`), access token 15 min + refresh token 30 jours (renouvellement silencieux, cf. §6).
+- **Anti-bruteforce** : après 5 échecs de connexion sur un identifiant dans les 15 dernières minutes, les tentatives suivantes sont bloquées (`assertNotLockedOut_`, `modules/auth.gs`), en s'appuyant sur `login_log` déjà tenu à jour — pas de table dédiée.
+- **CSRF** : les cookies de session sont `SameSite=Lax` (bloque déjà la quasi-totalité des requêtes mutantes cross-site) ; en complément, le middleware vérifie que l'en-tête `Origin` (quand présent) correspond à l'hôte de la requête pour toute méthode non-GET sur `/api/*` (`isTrustedOrigin`, `web/src/middleware.ts`). Pas de jeton double-submit dédié — jugé redondant avec ces deux couches.
+- **Injection de formule Google Sheets** : toute valeur écrite dans Sheets via `setValue()`/`setValues()` est interprétée comme une saisie manuelle — une chaîne commençant par `=`, `+`, `-`, `@` deviendrait une formule vivante à l'ouverture du classeur (et casserait au passage des données légitimes comme un numéro de téléphone `+33...`). Neutralisé au point d'écriture (`sanitizeForSheets_`, `lib/sheets.gs`), appliqué à toutes les tables sans exception au niveau d'`appendRowUnlocked_`/`updateRowUnlocked_`. **Non vérifié visuellement** : le comportement du guillemet simple en préfixe (force le texte littéral côté Sheets, invisible via `getValue()`) est un mécanisme natif documenté de Google Sheets, mais son effet réel n'a pas pu être confirmé en ouvrant le classeur dans l'interface Sheets depuis cet environnement (pas d'accès navigateur authentifié Google) — le roundtrip API (écriture puis lecture) a été vérifié, pas le rendu dans l'UI Sheets elle-même.
+- **XSS** : React échappe par défaut. Un seul usage de `dangerouslySetInnerHTML` dans tout le code (`THEME_INIT_SCRIPT` en tête de `layout.tsx`) — contenu 100% statique, sans interpolation d'entrée utilisateur.
+- **En-têtes HTTP** : `X-Content-Type-Options`, `X-Frame-Options: DENY` (anti-clickjacking), `Referrer-Policy`, `Permissions-Policy` (`next.config.js`). Pas de `Content-Security-Policy` — différé (nécessiterait d'auditer chaque source de script/image/fetch, risque de casser des choses sans pouvoir tout revérifier visuellement dans cet environnement).
+- **Autorisation défense-en-profondeur** : le Web App Apps Script est déployé en accès anonyme (`ANYONE_ANONYMOUS`) ; chaque action sensible revérifie elle-même le JWT (`requireAuth_`) plutôt que de faire confiance au seul proxy Next.js — cf. §6.
+- **Journal des connexions** (`login_log`) et **historique des modifications** par dossier (`docmod_historique`).
+
+**Vulnérabilité connue et non corrigée — dépendance Next.js** : `npm audit` (2026-07-17) signale plusieurs CVE réelles sur `next@14.2.35` (la dernière version 14.x — déjà à jour dans cette ligne), notamment DoS et empoisonnement de cache touchant Middleware et React Server Components, deux mécanismes utilisés par cette app. Le correctif nécessite Next.js 15 ou 16, ce qui implique : passage des API `cookies()`/`headers()` en asynchrone (2 points d'appel identifiés : `web/src/app/(shell)/layout.tsx`, `web/src/lib/auth-server.ts` — changement contenu) **et** une mise à niveau probable de React 18→19 avec ses propres changements de compatibilité (Framer Motion, TanStack Query...) — non contenu. Décision : ne pas migrer à l'aveugle en fin de session sans pouvoir revérifier l'intégralité des 6 phases déjà validées manuellement ; documenté ici comme actions prioritaires du prochain cycle plutôt que traité superficiellement.
+
+**Non implémenté** (aspirationnel dans une version antérieure de ce document, retiré ici pour rester honnête sur l'état réel) : sauvegarde automatique planifiée du classeur Sheets. Les versions Drive natives (historique de révisions, illimité par défaut) offrent déjà un filet de sécurité basique sans configuration ; une sauvegarde datée périodique reste à construire si le besoin se confirme.
 
 ---
 
@@ -249,7 +258,7 @@ src/
 | 4 | Archivage complet (recherche/filtres/tri/export), historique, commentaires | Vérifié (export CSV seulement, pas XLSX) |
 | 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | Vérifié (calendrier : vues Mois/Agenda seulement, Jour/Semaine différées ; miniatures photo non garanties multi-utilisateur, cf. §5) |
 | 6 | Notifications, gestion des utilisateurs, paramètres admin (nom/logo), PWA, mode sombre | Vérifié (formulaires dynamiques admin et sauvegarde/import/export différés, cf. ci-dessous ; PWA non testée à l'installation) |
-| 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | À faire |
+| 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | Vérifié (mise à jour Next.js majeure différée, cf. §9) |
 
 « Vérifié » signifie testé de bout en bout sur un vrai déploiement (Node.js installé, projet Apps Script réel, classeur Sheets réel, navigateur) les 2026-07-15 à 2026-07-17 — cf. [README](./README.md#état-davancement).
 

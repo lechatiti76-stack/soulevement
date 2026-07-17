@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { listDossiers } from "@/modules/nouvelle-demande/api";
 import type { Dossier } from "@/modules/nouvelle-demande/types";
+import { buildMonthGrid, toDateKey } from "@/lib/calendar";
 
 const STATUT_COLORS: Record<string, string> = {
   brouillon: "bg-gray-400",
@@ -21,14 +22,6 @@ const STATUT_LABELS: Record<string, string> = {
 };
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-
-// Clé locale (pas UTC) pour que le regroupement par jour corresponde au fuseau de l'utilisateur.
-function toDateKey(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 export default function CalendrierPage() {
   const [view, setView] = useState<"mois" | "agenda">("mois");
@@ -55,19 +48,7 @@ export default function CalendrierPage() {
 
   const monthLabel = cursor.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 
-  const days = useMemo(() => {
-    const year = cursor.getFullYear();
-    const month = cursor.getMonth();
-    const firstOfMonth = new Date(year, month, 1);
-    const startOffset = (firstOfMonth.getDay() + 6) % 7; // grille lundi-first
-    const start = new Date(year, month, 1 - startOffset);
-
-    return Array.from({ length: 42 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return d;
-    });
-  }, [cursor]);
+  const days = useMemo(() => buildMonthGrid(cursor.getFullYear(), cursor.getMonth()), [cursor]);
 
   function changeMonth(delta: number) {
     setCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));

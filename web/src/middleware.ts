@@ -13,8 +13,30 @@ async function tryRefresh(refreshToken: string): Promise<RefreshResult | null> {
   }
 }
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Défense en profondeur CSRF, en complément (pas en remplacement) des cookies SameSite=Lax
+ * qui bloquent déjà la plupart des requêtes mutantes cross-site. Les navigateurs modernes
+ * envoient toujours Origin sur les requêtes POST/PATCH/DELETE ; s'il est absent (client non
+ * navigateur), on laisse passer — Origin n'est ici qu'une couche supplémentaire, pas l'unique.
+ */
+function isTrustedOrigin(req: NextRequest): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === req.nextUrl.host;
+  } catch {
+    return false;
+  }
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith("/api/") && !SAFE_METHODS.has(req.method) && !isTrustedOrigin(req)) {
+    return NextResponse.json({ error: "Origine invalide" }, { status: 403 });
+  }
 
   // Les routes d'auth gèrent elles-mêmes leur logique (login, logout...), jamais bloquées ici.
   if (pathname.startsWith("/api/auth")) {

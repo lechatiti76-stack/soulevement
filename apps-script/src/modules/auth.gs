@@ -5,6 +5,8 @@
 
 var ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 min
 var REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 3600; // 30 jours
+var LOGIN_MAX_ATTEMPTS = 5;
+var LOGIN_LOCKOUT_MINUTES = 15;
 
 function authHandlers_() {
   return {
@@ -18,6 +20,8 @@ function authLogin_(body) {
   var identifiant = body.identifiant;
   var password = body.password;
   if (!identifiant || !password) throw new Error("Identifiant et mot de passe requis");
+
+  assertNotLockedOut_(identifiant);
 
   var found = findRow_("users", function (u) {
     return u.identifiant === identifiant;
@@ -97,6 +101,30 @@ function authLogout_(body) {
   if (found) deleteRow_("sessions", found.sheetRow);
 
   return { ok: true };
+}
+
+/**
+ * Anti-bruteforce : bloque temporairement un identifiant après N échecs récents.
+ * S'appuie sur login_log (déjà tenu à jour par logLogin_) plutôt que sur une table dédiée —
+ * la fenêtre glissante se réinitialise naturellement quand les échecs sortent de la période.
+ */
+function assertNotLockedOut_(identifiant) {
+  var cutoff = new Date(Date.now() - LOGIN_LOCKOUT_MINUTES * 60000);
+  var recentFailures = readTable_("login_log").filter(function (entry) {
+    return (
+      entry.identifiant === identifiant &&
+      String(entry.succes).toLowerCase() !== "true" &&
+      new Date(entry.date) >= cutoff
+    );
+  });
+
+  if (recentFailures.length >= LOGIN_MAX_ATTEMPTS) {
+    throw new Error(
+      "Trop de tentatives échouées pour cet identifiant. Réessayez dans " +
+        LOGIN_LOCKOUT_MINUTES +
+        " minutes."
+    );
+  }
 }
 
 function hashToken_(token) {
