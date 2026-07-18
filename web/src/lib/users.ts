@@ -44,7 +44,10 @@ export function createUser(input: {
   });
 }
 
-export function updateUser(id: string, patch: Partial<Pick<ManagedUser, "nom" | "prenom" | "email" | "fonction" | "role" | "actif">>) {
+export function updateUser(
+  id: string,
+  patch: Partial<Pick<ManagedUser, "nom" | "prenom" | "email" | "fonction" | "role" | "actif" | "identifiant">>
+) {
   return request<{ users: ManagedUser[] }>(`/api/users/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -57,8 +60,9 @@ export function deleteUser(id: string) {
   });
 }
 
-export function resetUserPassword(id: string) {
+export function resetUserPassword(id: string, newPassword?: string) {
   return request<{ temporaryPassword: string }>(`/api/users/${id}/reset-password`, {
     method: "POST",
+    body: JSON.stringify({ newPassword }),
   });
 }

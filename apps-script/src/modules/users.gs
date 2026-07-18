@@ -72,6 +72,16 @@ function usersUpdate_(body) {
     if (body[field] !== undefined) patch[field] = body[field];
   });
 
+  if (body.identifiant !== undefined) {
+    var newIdentifiant = String(body.identifiant).trim();
+    if (!newIdentifiant) throw new Error("Identifiant vide");
+    var existing = findRow_("users", function (u) {
+      return u.identifiant === newIdentifiant && String(u.id) !== String(body.id);
+    });
+    if (existing) throw new Error("Cet identifiant existe déjà");
+    patch.identifiant = newIdentifiant;
+  }
+
   if (body.role !== undefined) {
     if (found.data.role === "admin" && body.role !== "admin" && countActiveAdmins_() <= 1) {
       throw new Error("Impossible de rétrograder le dernier administrateur");

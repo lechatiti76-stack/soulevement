@@ -32,7 +32,7 @@ describe("buildMonthGrid", () => {
 
   it("commence un lundi", () => {
     const grid = buildMonthGrid(2026, 6);
-    expect(grid[0].getDay()).toBe(1);
+    expect(grid[0]?.getDay()).toBe(1);
   });
 
   it("couvre bien tous les jours du mois ciblé", () => {

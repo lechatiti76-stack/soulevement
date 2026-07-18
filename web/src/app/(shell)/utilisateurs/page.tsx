@@ -75,9 +75,25 @@ export default function UtilisateursPage() {
   }
 
   async function handleResetPassword(id: string) {
+    const chosen = window.prompt(
+      "Nouveau mot de passe (laisser vide pour en générer un aléatoirement) :"
+    );
+    if (chosen === null) return; // annulé
     try {
-      const { temporaryPassword } = await resetUserPassword(id);
+      const { temporaryPassword } = await resetUserPassword(id, chosen || undefined);
       setTempPassword(temporaryPassword);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    }
+  }
+
+  async function handleRenameIdentifiant(id: string, current: string) {
+    const next = window.prompt("Nouvel identifiant :", current);
+    if (!next || next === current) return;
+    try {
+      await updateUser(id, { identifiant: next.trim() });
+      notify("Identifiant modifié", "success");
+      refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Erreur", "error");
     }
@@ -181,7 +197,16 @@ export default function UtilisateursPage() {
                 <td className="px-4 py-3">
                   {u.prenom} {u.nom}
                 </td>
-                <td className="px-4 py-3">{u.identifiant}</td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => handleRenameIdentifiant(u.id, u.identifiant)}
+                    className="hover:underline"
+                    title="Modifier l'identifiant"
+                  >
+                    {u.identifiant}
+                  </button>
+                </td>
                 <td className="px-4 py-3">{u.fonction}</td>
                 <td className="px-4 py-3">
                   <select
