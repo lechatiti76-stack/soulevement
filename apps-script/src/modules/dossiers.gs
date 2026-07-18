@@ -1,10 +1,27 @@
 /**
- * Module "Nouvelle demande" : dépôt de document, extraction IA, formulaire, génération PDF,
- * commentaires et historique. Sans galerie photos/annexes (Phase 5).
+ * Modules de dossiers : dépôt de document, formulaire, génération PDF, commentaires,
+ * historique, annexes. Deux modules à ce jour :
+ * - "nouvelle-demande" : générique, dépôt de document + extraction IA (Phase 2-3, inchangé)
+ * - "soulevement" : fiche wagons, formulaire structuré en 3 parties, sans document source,
+ *   PDF généré depuis un template Slides (cf. lib/pdf-template.gs)
  * Cf. ARCHITECTURE.md §4, §6, §7.
  */
 
-var DOSSIER_MODULE = "nouvelle-demande";
+var DOSSIER_MODULE = "nouvelle-demande"; // valeur par défaut / rétrocompatibilité des données existantes
+
+var MODULE_CONFIG = {
+  "nouvelle-demande": { prefix: "ND", requiresSource: true },
+  "soulevement": { prefix: "SOU", requiresSource: false },
+};
+
+function moduleConfig_(module) {
+  return MODULE_CONFIG[module] || MODULE_CONFIG[DOSSIER_MODULE];
+}
+
+/** Ramène toute valeur de module absente/inconnue (ex. lignes créées avant cette colonne) au module par défaut. */
+function normalizeModule_(module) {
+  return module && MODULE_CONFIG[module] ? module : DOSSIER_MODULE;
+}
 
 function dossiersHandlers_() {
   return {
@@ -20,22 +37,21 @@ function dossiersHandlers_() {
 
 function dossiersCreate_(body) {
   var session = requireAuth_(body);
+  var module = normalizeModule_(body.module);
+  var config = moduleConfig_(module);
 
-  if (!body.fileBase64 || !body.fileName || !body.mimeType) {
+  if (config.requiresSource && (!body.fileBase64 || !body.fileName || !body.mimeType)) {
     throw new Error("Document source requis (fileBase64, fileName, mimeType)");
   }
 
-  var numero = nextDossierNumero_();
-  var folder = getDossierFolder_(DOSSIER_MODULE, numero);
-  var sourceFolder = getOrCreateFolder_(folder, "source");
-  var file = saveBase64File_(sourceFolder, body.fileBase64, body.fileName, body.mimeType);
-
+  var numero = nextDossierNumero_(module);
   var dossierId = Utilities.getUuid();
   var now = new Date().toISOString();
 
   appendRow_("docmod_dossiers", {
     id: dossierId,
     numero: numero,
+    module: module,
     user_id: session.sub,
     statut: "brouillon",
     date_creation: now,
@@ -45,15 +61,26 @@ function dossiersCreate_(body) {
     qr_code_url: "",
   });
 
-  appendRow_("docmod_documents_source", {
-    id: Utilities.getUuid(),
-    dossier_id: dossierId,
-    type: guessDocType_(body.mimeType),
-    drive_file_id: file.getId(),
-    date_upload: now,
-  });
+  if (body.fileBase64 && body.fileName && body.mimeType) {
+    var folder = getDossierFolder_(module, numero);
+    var sourceFolder = getOrCreateFolder_(folder, "source");
+    var file = saveBase64File_(sourceFolder, body.fileBase64, body.fileName, body.mimeType);
 
-  logHistorique_(dossierId, "creation", session.sub, "Dossier créé (" + body.fileName + ")");
+    appendRow_("docmod_documents_source", {
+      id: Utilities.getUuid(),
+      dossier_id: dossierId,
+      type: guessDocType_(body.mimeType),
+      drive_file_id: file.getId(),
+      date_upload: now,
+    });
+  }
+
+  logHistorique_(
+    dossierId,
+    "creation",
+    session.sub,
+    body.fileName ? "Dossier créé (" + body.fileName + ")" : "Dossier créé"
+  );
 
   return dossierGetById_(dossierId, session);
 }
@@ -61,7 +88,8 @@ function dossiersCreate_(body) {
 /**
  * Extraction IA synchrone : appelle OpenAI pendant l'exécution de la requête (pas de
  * découpage async, cf. lib/openai.gs). Échoue proprement — l'utilisateur garde la main
- * pour remplir le formulaire manuellement si l'extraction échoue.
+ * pour remplir le formulaire manuellement si l'extraction échoue. Utilisée par le module
+ * "nouvelle-demande" (document déposé) — sans objet pour "soulevement" (pas de document source).
  */
 function dossiersExtractIA_(body) {
   var session = requireAuth_(body);
@@ -131,6 +159,7 @@ function dossiersValidate_(body) {
   var session = requireAuth_(body);
   var found = getOwnedDossierRow_(body.id, session);
   var dossier = found.data;
+  var module = normalizeModule_(dossier.module);
 
   if (dossier.statut === "valide" || dossier.statut === "archive") {
     throw new Error("Ce dossier est déjà validé");
@@ -140,9 +169,13 @@ function dossiersValidate_(body) {
     return String(u.id) === String(dossier.user_id);
   });
   dossier.userDisplay = userRow ? userRow.data.prenom + " " + userRow.data.nom : dossier.user_id;
-  dossier.module = DOSSIER_MODULE;
+  dossier.module = module;
 
-  var pdfFile = buildAndExportDossierPdf_(dossier, DOSSIER_SCHEMA);
+  var pdfFile =
+    module === "soulevement"
+      ? buildAndExportSoulevementPdf_(dossier)
+      : buildAndExportDossierPdf_(dossier, DOSSIER_SCHEMA);
+
   var now = new Date().toISOString();
 
   updateRow_("docmod_dossiers", found.sheetRow, {
@@ -154,7 +187,7 @@ function dossiersValidate_(body) {
   appendRow_("archives_index", {
     id: Utilities.getUuid(),
     numero_dossier: dossier.numero,
-    module: DOSSIER_MODULE,
+    module: module,
     dossier_id: dossier.id,
     user_id: dossier.user_id,
     statut: "valide",
@@ -176,12 +209,19 @@ function dossiersGet_(body) {
 function dossiersList_(body) {
   var session = requireAuth_(body);
   var all = readTable_("docmod_dossiers");
+
   var mine =
     session.role === "admin"
       ? all
       : all.filter(function (d) {
           return String(d.user_id) === String(session.sub);
         });
+
+  if (body.module) {
+    mine = mine.filter(function (d) {
+      return normalizeModule_(d.module) === body.module;
+    });
+  }
 
   mine.sort(function (a, b) {
     return String(b.date_creation).localeCompare(String(a.date_creation));
@@ -196,10 +236,6 @@ function dossiersAddComment_(body) {
 
   var texte = String(body.texte || "").trim();
   if (!texte) throw new Error("Commentaire vide");
-
-  var userRow = findRow_("users", function (u) {
-    return String(u.id) === String(session.sub);
-  });
 
   appendRow_("docmod_commentaires", {
     id: Utilities.getUuid(),
@@ -220,6 +256,7 @@ function dossierGetById_(id, session) {
   });
   if (!found) throw new Error("Dossier introuvable");
   assertOwnership_(found.data, session);
+  found.data.module = normalizeModule_(found.data.module);
 
   var sources = readTable_("docmod_documents_source").filter(function (s) {
     return String(s.dossier_id) === String(id);
@@ -292,23 +329,30 @@ function assertOwnership_(dossier, session) {
   }
 }
 
-/** Compteur atomique en table settings (clé "docmod_counter") — un seul lock, pas d'imbrication. */
-function nextDossierNumero_() {
+/**
+ * Compteur atomique en table settings, une clé par module — un seul lock, pas d'imbrication.
+ * "nouvelle-demande" garde la clé historique "docmod_counter" (données déjà en production) ;
+ * les nouveaux modules obtiennent leur propre séquence.
+ */
+function nextDossierNumero_(module) {
+  var config = moduleConfig_(module);
+  var counterKey = module === "nouvelle-demande" ? "docmod_counter" : "docmod_counter_" + module;
+
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     var found = findRow_("settings", function (s) {
-      return s.cle === "docmod_counter";
+      return s.cle === counterKey;
     });
     var next = found ? parseInt(found.data.valeur, 10) + 1 : 1;
 
     if (found) {
       updateRowUnlocked_("settings", found.sheetRow, { valeur: String(next) });
     } else {
-      appendRowUnlocked_("settings", { cle: "docmod_counter", valeur: String(next) });
+      appendRowUnlocked_("settings", { cle: counterKey, valeur: String(next) });
     }
 
-    return "ND-" + new Date().getFullYear() + "-" + ("0000" + next).slice(-4);
+    return config.prefix + "-" + new Date().getFullYear() + "-" + ("0000" + next).slice(-4);
   } finally {
     lock.releaseLock();
   }

@@ -9,6 +9,7 @@ export type FieldType =
   | "select"
   | "radio"
   | "checkbox"
+  | "checkbox-group"
   | "signature";
 
 export type FieldOption = { value: string; label: string };
@@ -19,6 +20,10 @@ export type FieldDef = {
   type: FieldType;
   required?: boolean;
   options?: FieldOption[];
+  // Ajoute un bouton "Photographier" à côté d'un champ texte, qui remplit le champ par
+  // reconnaissance IA (module "soulevement") — cf. PhotoOcrField.tsx. Le champ reste toujours
+  // corrigible manuellement : ce n'est qu'un raccourci de saisie, pas un nouveau type de champ.
+  photoOcr?: boolean;
 };
 
 // IMPORTANT : doit rester synchronisé manuellement avec

@@ -2,6 +2,7 @@
 
 import type { FieldDef } from "../schema";
 import { SignaturePad } from "./SignaturePad";
+import { PhotoOcrField } from "@/modules/soulevement/components/PhotoOcrField";
 
 type Props = {
   schema: FieldDef[];
@@ -82,16 +83,49 @@ function FieldControl({
           Oui
         </label>
       );
+    case "checkbox-group": {
+      const selected = Array.isArray(value) ? (value as string[]) : [];
+      return (
+        <div className="flex flex-wrap gap-2">
+          {field.options?.map((opt) => {
+            const checked = selected.includes(opt.value);
+            return (
+              <label
+                key={opt.value}
+                className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-sm transition ${
+                  checked
+                    ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+                    : "border-[rgb(var(--border))]"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={checked}
+                  onChange={() =>
+                    onChange(checked ? selected.filter((v) => v !== opt.value) : [...selected, opt.value])
+                  }
+                />
+                {opt.label}
+              </label>
+            );
+          })}
+        </div>
+      );
+    }
     case "signature":
       return <SignaturePad value={(value as string) || ""} onChange={onChange} />;
     default:
       return (
-        <input
-          type={field.type}
-          className={INPUT_CLASS}
-          value={(value as string) || ""}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type={field.type}
+            className={INPUT_CLASS}
+            value={(value as string) || ""}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          {field.photoOcr && <PhotoOcrField onExtracted={onChange} />}
+        </div>
       );
   }
 }

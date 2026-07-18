@@ -58,6 +58,7 @@ function getModuleHandlers_() {
     annexesHandlers_(),
     statsHandlers_(),
     usersHandlers_(),
-    settingsHandlers_()
+    settingsHandlers_(),
+    ocrHandlers_()
   );
 }

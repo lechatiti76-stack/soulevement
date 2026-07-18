@@ -43,17 +43,19 @@ Le tout dans un shell applicatif multi-modules (dashboard commun, auth commune, 
 
 ```
 Shell applicatif (auth, dashboard, archives, utilisateurs, paramètres)
-├── Module: Nouvelle demande (app "traitement de documents" — celle du CDC actuel)
-├── Module: Application 2 (future)
-├── Module: Application 3 (future)
+├── Module: Nouvelle demande (app "traitement de documents" — celle du CDC initial)
+├── Module: Soulèvement (fiche wagons — formulaire structuré en 3 parties, cf. §13)
+├── Module: Bris de barrières (future — même mécanisme que Soulèvement)
+├── Module: RCI (future — même mécanisme)
+├── Module: Autres (future — même mécanisme)
 ├── Archives (transverse, alimenté par tous les modules)
 ├── Utilisateurs (transverse)
 └── Paramètres (transverse)
 ```
 
-Principe : chaque module métier est un dossier autonome sous `src/modules/<nom>/` avec ses propres pages, composants, formulaires et endpoints Apps Script — déclaré dans un **registre de modules** (`src/modules/registry.ts`) qui alimente le menu latéral, le routing et les permissions. Ajouter un module = ajouter une entrée au registre + son dossier, sans toucher aux autres modules ni au shell.
+Principe : chaque module métier est un dossier autonome sous `src/modules/<nom>/` avec ses propres pages, composants, formulaires et endpoints Apps Script. Contrairement à l'intention initiale (registre `src/modules/registry.ts` piloté par une entrée déclarative unique), l'implémentation réelle (Phase 8, module Soulèvement) est un peu plus pragmatique : le **registre existe côté frontend** (`web/src/lib/modules.ts`, alimente les vignettes du dashboard "Applications"), mais chaque module ajoute encore ses propres routes sous `app/(shell)/modules/<nom>/` et son propre `api.ts`/`schema.ts`/`types.ts` — pas de routing générique unique par `[module]`. Accepté comme dette mineure : avec 4 modules prévus dont 3 partageant la même mécanique (formulaire + PDF dédié), une généralisation plus poussée du routing frontend sera reconsidérée quand le 2e module réel (au-delà de Soulèvement) sera construit.
 
-Côté Apps Script, même logique : un fichier `.gs` "router" central dispatche vers `modules/<nom>/api.gs` selon un paramètre `module` dans la requête. Toutes les feuilles Google Sheets d'un module sont préfixées (`docmod_dossiers`, `docmod_annexes`, etc.) pour cohabiter dans le même classeur que les tables transverses (`users`, `roles`, `archives_index`, `activity_log`).
+Côté Apps Script, un routeur central (`main.gs`) fusionne les handlers exposés par chaque fichier `modules/*.gs` (`"<nom>Handlers_()"`, cf. §6). Les dossiers métier de tous les modules "formulaire" (`nouvelle-demande`, `soulevement`, et les futurs) partagent les **mêmes tables** `docmod_dossiers`/`docmod_annexes`/`docmod_commentaires`/`docmod_historique` (plutôt qu'un jeu de tables par module) : une colonne `module` sur `docmod_dossiers` distingue les dossiers, et un objet `MODULE_CONFIG` (`modules/dossiers.gs`) paramètre par module le préfixe de numérotation, l'obligation ou non d'un document source à l'upload, et (via `dossiersValidate_`) le générateur de PDF à appeler. Ce partage évite de dupliquer tout le CRUD (annexes, commentaires, historique, ownership) pour chaque nouveau module — le coût est que `docmod_dossiers.form_data` a une forme différente selon le module (non typée au niveau base, seulement au niveau schéma frontend/Apps Script de chaque module).
 
 ---
 
@@ -73,16 +75,18 @@ Un classeur unique, un onglet par table.
 | `archives_index` | id, numero_dossier, module, dossier_id, user_id, statut, date_creation, date_validation, pdf_url |
 | `settings` | clé, valeur (logo_url, nom_app, couleurs, etc.) |
 
-**Tables du module "Nouvelle demande"**
+**Tables partagées par tous les modules "formulaire"** (`nouvelle-demande`, `soulevement`, futurs — cf. §3)
 
 | Table | Colonnes clés |
 |---|---|
-| `docmod_dossiers` | id, numero, user_id, statut (brouillon/en_attente/valide/archive), date_creation, date_validation, form_data (JSON), pdf_url, qr_code_url |
-| `docmod_documents_source` | id, dossier_id, type (pdf/word/image), drive_file_id, date_upload |
-| `docmod_extraction_ia` | id, dossier_id, champs_extraits (JSON), confiance, statut (a_verifier/valide) |
+| `docmod_dossiers` | id, numero, **module**, user_id, statut (brouillon/en_attente/valide/archive), date_creation, date_validation, form_data (JSON, forme dépendante du module), pdf_url, qr_code_url |
+| `docmod_documents_source` | id, dossier_id, type (pdf/word/image), drive_file_id, date_upload — non utilisé par `soulevement` (pas de document source, `MODULE_CONFIG.requiresSource = false`) |
+| `docmod_extraction_ia` | id, dossier_id, champs_extraits (JSON), confiance, statut (a_verifier/valide) — non utilisé par `soulevement` (pas d'extraction IA de document ; l'OCR par champ de `soulevement`, cf. §13, est stateless et n'écrit pas dans cette table) |
 | `docmod_annexes` | id, dossier_id, type (photo/piece_jointe), drive_file_id, nom, date_ajout |
 | `docmod_commentaires` | id, dossier_id, user_id, texte, date |
 | `docmod_historique` | id, dossier_id, action, user_id, date, detail |
+
+**Colonne `module` ajoutée en Phase 8** : migration additive (`setupDatabase()`, ré-exécutable, ajoute la colonne en fin de ligne sans toucher aux données existantes) — **doit être ré-exécutée manuellement une fois dans l'éditeur Apps Script** après ce déploiement pour que les nouveaux dossiers `soulevement` soient correctement filtrés/dispatchés (sinon `normalizeModule_` les traite comme `nouvelle-demande` par défaut, cf. `modules/dossiers.gs`). Les lignes déjà existantes sans valeur de `module` restent interprétées comme `nouvelle-demande` — rétrocompatibilité voulue, pas un bug.
 
 **Limites Sheets à anticiper :** ~10M cellules par classeur, écritures concurrentes à protéger avec `LockService.getScriptLock()`, lecture/écriture lente au-delà de quelques dizaines de milliers de lignes → prévoir un archivage périodique vers des classeurs "froids" par année si le volume grossit.
 
@@ -129,6 +133,7 @@ Un seul déploiement Web App, routage par `action` dans le corps JSON (Apps Scri
 | `dossiers.addAnnexe` | POST | utilisateur/admin | Ajoute une photo ou pièce jointe à un dossier |
 | `dossiers.deleteAnnexe` | POST | utilisateur/admin | Supprime une annexe (Drive + ligne Sheets) |
 | `annexes.list` | POST | utilisateur/admin | Vue transverse de toutes les annexes d'un type, tous dossiers confondus, filtrée par rôle |
+| `fields.extractSingle` | POST | utilisateur | OCR ponctuel d'un seul champ (photo → numéro), module `soulevement` — stateless, cf. §13 |
 | `archives.search` | POST | utilisateur/admin | Recherche/filtre/tri sur `archives_index` (filtré par rôle) |
 | `stats.summary` | POST | utilisateur/admin | Agrégats pour le dashboard et la page statistiques |
 | `settings.get` | POST | utilisateur/admin | Lecture des paramètres globaux (nom app, logo — affichés dans la sidebar pour tous) |
@@ -181,6 +186,8 @@ Implémenté en Phase 2 : numéro de dossier, date, utilisateur, champs du formu
 - **Logo** — dépend de `settings.logo_url` (paramètres admin, pas encore implémentés)
 - **QR code** — décision §2 : encodeur JS pur embarqué en Apps Script, pas encore écrit (~300+ lignes, tâche dédiée)
 - **Photos / annexes intégrées au PDF** — actuellement seule la signature est embarquée ; les photos/pièces jointes (Phase 5) seront listées en lien plutôt qu'incrustées dans un premier temps
+
+**Module `soulevement` (Phase 8) : approche différente, cf. §13.** Le générateur ci-dessus (`buildAndExportDossierPdf_`, `DocumentApp`) reste inchangé et continue de servir le module `nouvelle-demande`. Le module `soulevement` utilise un second générateur (`buildAndExportSoulevementPdf_`, `apps-script/src/lib/pdf-template.gs`) basé sur `SlidesApp`, dispatché depuis `dossiersValidate_` selon le `module` du dossier.
 
 ---
 
@@ -259,12 +266,40 @@ src/
 | 5 | Calendrier, galerie photos, pièces jointes, statistiques/graphiques | Vérifié (calendrier : vues Mois/Agenda seulement, Jour/Semaine différées ; miniatures photo non garanties multi-utilisateur, cf. §5) |
 | 6 | Notifications, gestion des utilisateurs, paramètres admin (nom/logo), PWA, mode sombre | Vérifié (formulaires dynamiques admin et sauvegarde/import/export différés, cf. ci-dessous ; PWA non testée à l'installation) |
 | 7 | Durcissement sécurité, tests, documentation d'installation/déploiement | Vérifié (mise à jour Next.js majeure différée, cf. §9) |
+| 8 | Dashboard multi-modules (4 vignettes) + module "Soulèvement" (formulaire 3 parties, OCR par champ, PDF via template Slides) | Partiellement vérifié — cf. §13 |
 
 « Vérifié » signifie testé de bout en bout sur un vrai déploiement (Node.js installé, projet Apps Script réel, classeur Sheets réel, navigateur) les 2026-07-15 à 2026-07-17 — cf. [README](./README.md#état-davancement).
 
 **Gaps Phase 6 assumés** (pages `/utilisateurs` et `/parametres` existaient dans le menu depuis la Phase 0 sans aucune page ni backend derrière — corrigé cette phase ; `/formulaires` reste un lien mort, volontairement) :
 - Éditeur de formulaires (« Gestion des formulaires » du CDC) — nécessiterait de rendre le schéma de formulaire dynamique/piloté par base de données au lieu du fichier statique `schema.ts` actuel ; pas justifié tant qu'un seul module existe.
 - Sauvegarde/Import/Export génériques au niveau paramètres — l'export CSV des archives couvre déjà le besoin d'export le plus concret ; sauvegarde/restauration complète du classeur différée.
+
+---
+
+## 13. Module "Soulèvement" (Phase 8)
+
+Premier module métier construit au-dessus du dashboard multi-modules (`web/src/lib/modules.ts`, 4 vignettes : Soulèvement actif, Bris de barrières/RCI/Autres "Bientôt disponible"). Les 3 modules futurs suivront la même mécanique décrite ici — seuls le schéma de formulaire et le template PDF changeront.
+
+**Formulaire en 3 parties** (`apps-script/src/modules/soulevement-schema.gs`, mirroir `web/src/modules/soulevement/schema.ts`) — découpage pensé pour rester court à l'écran sur mobile, calqué sur le regroupement naturel du document papier fourni :
+1. **Localisation et matériel** : date/heure, 22 cases à cocher (voies VF/VR/VFL/VEXT), 4× numéros de conteneur + 4× numéros de wagon (avec OCR photo, cf. ci-dessous), longueur wagon, relevage nécessaire, météo, moment, visibilité, conséquences.
+2. **Appel aux personnes concernées** : 3 colonnes (Service Technique LHTE / Gestionnaire matériels / Entreprise ferroviaire), chacune avec personne contactée + heure + case "Personne jointe" ; les 2 dernières colonnes ajoutent un menu déroulant d'entreprise (NRS/TOUAX/Inveho/Wascosa/SDH FER, ou NAVILAND CARGO/FEROVERGNE — listes reprises du document papier).
+3. **Autorisation et clôture** : 3 signatures nommées (réutilise `SignaturePad` tel quel — le moteur de formulaire supportait déjà plusieurs champs `signature` distincts sans modification), dates/heures, validation aiguilleur, fiche clôturée.
+
+**OCR par champ** (`fields.extractSingle`, `apps-script/src/modules/ocr.gs`) : bouton "📷" à côté de chaque champ numéro de conteneur/wagon (`PhotoOcrField.tsx`, `<input capture="environment">` déclenche l'appareil photo sur mobile). Réutilise `lib/openai.gs` avec un schéma JSON minimal `{numero}` au lieu du schéma complet `DOSSIER_SCHEMA` — stateless, ne persiste rien. Le champ reste toujours corrigible manuellement si la reconnaissance échoue ou se trompe. Photos "dossier" classiques (annexes) restent gérées par le système existant (Phase 5) — pas de nouveau mécanisme, déjà conforme à "photos après le PDF en pièce jointe".
+
+**Génération PDF — pivot Docs → Slides.** Le fichier Word fourni comme référence pour la mise en forme (`soulévement.docx`) a été inspecté (unzip + XML `document.xml`) : **0 vrai tableau Word** (`<w:tbl>` = 0), la mise en page (bandeau vert, grille de cases à cocher, tableau de contacts) repose entièrement sur 40 zones de texte flottantes (`txbxContent` dans des `<w:drawing>`). `DocumentApp` (service Apps Script utilisé par `pdf.gs` pour le module `nouvelle-demande`) ne lit/n'édite pas de façon fiable ce type de contenu — l'approche initialement prévue (jetons `{{...}}` dans un template Word uploadé + `body.replaceText()`) n'était donc pas applicable telle quelle à ce fichier.
+
+**Solution retenue** : le template est reconstruit par **code** via `SlidesApp` (`apps-script/src/lib/pdf-template.gs`, `getOrBuildSoulevementTemplate_()`) plutôt qu'un fichier à uploader manuellement — Slides gère nativement les zones de texte positionnées, et `Presentation.replaceAllText()` est l'équivalent direct du mécanisme "jetons + remplacement" prévu. Le template (bandeau vert, grille de 22 cases à cocher, 4×2 champs conteneur/wagon, tableau de contacts 3 colonnes, 3 zones de signature) est construit une seule fois (mémorisé dans `PropertiesService` sous `SOULEVEMENT_TEMPLATE_ID`, reconstruit automatiquement si le fichier Drive a été supprimé), puis copié et rempli à chaque validation de dossier — même schéma que `getRootFolder_()` (auto-création paresseuse). Reproduction fidèle de l'organisation/libellés/cases à cocher/couleur verte du document source, **sans viser une réplique pixel-perfect** du graphique original (icônes de wagons non reproduites) — positionnement des ~60 zones de texte calculé par un curseur Y et des helpers de mise en page (`souAddFieldRow_`, `souAddCheckboxGrid_`, etc.), pas par coordonnées codées en dur une à une.
+
+Les cases à cocher (y compris chaque option d'un champ `radio` ou `checkbox-group`) sont rendues comme des caractères Unicode `☒`/`☐` (`CB_CHECKED`/`CB_UNCHECKED`), un jeton par option (`checkboxToken_(fieldName, option)` — même helper côté schéma et côté génération). Les signatures (images base64) sont insérées après `replaceAllText()` (qui n'agit que sur du texte) : la zone jeton `{{signature_x}}` est repérée par son texte, sa position/taille relevée, puis remplacée par `slide.insertImage()`.
+
+**Vérifié en conditions réelles (2026-07-18)** : poussé et déployé sur le vrai projet Apps Script (@8). Testé de bout en bout via navigateur réel (login → dashboard → vignette Soulèvement → assistant 3 parties → cases à cocher/menus déroulants/signatures → validation → PDF généré, dossier `SOU-2026-0002`) et via appels API directs (`SOU-2026-0001`) : création, remplissage des 3 parties, validation, dispatch de numérotation (`SOU-` correct) tous confirmés fonctionnels. Non-régression du module `nouvelle-demande` confirmée (listing, filtrage par module).
+
+**Non vérifié visuellement à ce stade** : le rendu réel du PDF généré par le nouveau générateur Slides. Deux causes distinctes, toutes deux hors de mon contrôle depuis cet environnement :
+1. La colonne `module` ajoutée à `docmod_dossiers` (cf. §4) nécessite que **`setupDatabase()` soit ré-exécuté manuellement dans l'éditeur Apps Script** — sans cela, `dossiersValidate_` route (à tort) tous les dossiers vers l'ancien générateur `nouvelle-demande` (`DocumentApp`), pas vers `buildAndExportSoulevementPdf_`. Les deux dossiers de test créés le 2026-07-18 ont donc généré un PDF avec l'ancien générateur générique, pas le nouveau template Slides.
+2. Les PDF sont stockés sous le compte Google qui exécute le script (`executeAs: USER_DEPLOYING`, limitation déjà documentée §5) — je n'ai pas d'accès Drive authentifié depuis cet environnement pour ouvrir et inspecter visuellement le fichier moi-même.
+
+**Action attendue avant de considérer le PDF Soulèvement pleinement vérifié** : (a) ré-exécuter `setupDatabase()` une fois, (b) créer/valider une fiche Soulèvement (ou revalider un brouillon existant), (c) ouvrir le PDF généré et vérifier visuellement la mise en page — le positionnement des ~60 zones de texte calculé par les helpers de `pdf-template.gs` est la partie la plus à risque de ce module (jamais rendu ni ajusté visuellement avant ce déploiement).
 
 ---
 

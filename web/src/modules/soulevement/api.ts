@@ -1,4 +1,4 @@
-import type { Dossier, DossierWithSources, ExtractionResult } from "./types";
+import type { Dossier, DossierWithSources } from "./types";
 import type { AnnexeType } from "@/lib/annexes";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -12,23 +12,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function listDossiers() {
-  return request<{ dossiers: Dossier[] }>("/api/dossiers?module=nouvelle-demande");
+  return request<{ dossiers: Dossier[] }>("/api/dossiers?module=soulevement");
 }
 
 export function getDossier(id: string) {
   return request<DossierWithSources>(`/api/dossiers/${id}`);
 }
 
-export function createDossier(file: { fileBase64: string; fileName: string; mimeType: string }) {
+export function createDossier() {
   return request<DossierWithSources>("/api/dossiers", {
     method: "POST",
-    body: JSON.stringify(file),
-  });
-}
-
-export function extractDossierIA(id: string) {
-  return request<ExtractionResult>(`/api/dossiers/${id}/extract`, {
-    method: "POST",
+    body: JSON.stringify({ module: "soulevement" }),
   });
 }
 

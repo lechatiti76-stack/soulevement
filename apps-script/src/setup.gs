@@ -30,9 +30,9 @@ function setupDatabase() {
     ],
     settings: ["cle", "valeur"],
 
-    // Module "Nouvelle demande" — cf. ARCHITECTURE.md §4
+    // Dossiers, communs à tous les modules ("nouvelle-demande", "soulevement"...) — cf. ARCHITECTURE.md §4
     docmod_dossiers: [
-      "id", "numero", "user_id", "statut",
+      "id", "numero", "module", "user_id", "statut",
       "date_creation", "date_validation", "form_data", "pdf_url", "qr_code_url",
     ],
     docmod_documents_source: ["id", "dossier_id", "type", "drive_file_id", "date_upload"],

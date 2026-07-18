@@ -29,7 +29,7 @@ function dossiersAddAnnexe_(body) {
   }
 
   var type = body.type === "photo" ? "photo" : "piece_jointe";
-  var folder = getDossierFolder_(DOSSIER_MODULE, dossier.numero);
+  var folder = getDossierFolder_(normalizeModule_(dossier.module), dossier.numero);
   var subFolder = getOrCreateFolder_(folder, type === "photo" ? "photos" : "pieces_jointes");
   var file = saveBase64File_(subFolder, body.fileBase64, body.fileName, body.mimeType);
 

@@ -115,7 +115,7 @@ export default function ArchivesPage() {
               <tr key={a.id} className="border-t border-[rgb(var(--border))]">
                 <td className="px-4 py-3">
                   <Link
-                    href={`/modules/nouvelle-demande/${a.dossier_id}`}
+                    href={`/modules/${a.module}/${a.dossier_id}`}
                     className="font-medium text-brand-600 hover:underline dark:text-brand-500"
                   >
                     {a.numero_dossier}
