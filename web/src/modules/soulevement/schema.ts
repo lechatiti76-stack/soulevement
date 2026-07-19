@@ -18,6 +18,19 @@ function opts(values: string[]) {
 // au besoin (pas reliée à la page Utilisateurs, cf. décision utilisateur).
 const CONTROLEURS = ["PATON ROMUALD"];
 
+// Listes manuelles fournies par l'utilisateur (à compléter au besoin, mêmes listes utilisées
+// côté apps-script/src/modules/soulevement-schema.gs).
+const CONSEQUENCES = [
+  "Soulévemement et déraillement de wagons engageant une voie principale",
+  "Soulévemement et déraillement de wagons engageant une voie de service",
+  "Soulévement et déraillement de wagons engageant un aiguillage",
+  "Soulévement et déraillement de wagons engageant 2 voies de service",
+  "Soulévemement de wagons engageant une voie de service",
+];
+const SERVICE_TECHNIQUE = ["D. PERROT", "S. CHIPPINGTHON", "Y. BENARD"];
+const GESTIONNAIRE = ["SDH FER", "SOCORAIL", "WASCOSA", "ERMEWA", "INVEHO", "FREEMAN"];
+const ENTREPRISE_FERROVIAIRE = ["NRS", "NAVILAND", "FEROVERGNE", "FORWARDIS", "SOLVAY"];
+
 export type SoulevementPart = 1 | 2 | 3;
 
 export type SoulevementFieldDef = FieldDef & { part: SoulevementPart };
@@ -52,10 +65,22 @@ export const soulevementSchema: SoulevementFieldDef[] = [
   { name: "meteo", label: "Météo", type: "checkbox-group", part: 1, options: opts(["Ensoleillé", "Brumeux", "Pluvieux", "Vent"]) },
   { name: "moment_journee", label: "Moment", type: "radio", part: 1, options: opts(["Nuit", "Jour"]) },
   { name: "visibilite", label: "Visibilité", type: "radio", part: 1, options: opts(["Bonne", "Moyenne", "Mauvaise"]) },
-  { name: "consequences", label: "Conséquence et mesures conservatoires prises", type: "textarea", part: 1 },
+  {
+    name: "consequences",
+    label: "Conséquence et mesures conservatoires prises",
+    type: "checkbox-group",
+    part: 1,
+    options: opts(CONSEQUENCES),
+  },
 
   // Partie 2 — Appel aux personnes concernées
-  { name: "st_personne_contactee", label: "Service Technique LHTE — Personne contactée", type: "text", part: 2 },
+  {
+    name: "st_personne_contactee",
+    label: "Service Technique LHTE — Personne contactée",
+    type: "select",
+    part: 2,
+    options: opts(SERVICE_TECHNIQUE),
+  },
   { name: "st_heure", label: "Service Technique LHTE — Heure", type: "time", part: 2 },
   { name: "st_jointe", label: "Personne jointe", type: "checkbox", part: 2 },
   { name: "st_telephone", label: "Téléphone", type: "tel", part: 2 },
@@ -64,7 +89,7 @@ export const soulevementSchema: SoulevementFieldDef[] = [
     label: "Gestionnaire matériels — Entreprise",
     type: "select",
     part: 2,
-    options: opts(["NRS", "TOUAX", "Inveho", "Wascosa", "SDH FER"]),
+    options: opts(GESTIONNAIRE),
   },
   { name: "gm_personne_contactee", label: "Gestionnaire matériels — Personne contactée", type: "text", part: 2 },
   { name: "gm_heure", label: "Gestionnaire matériels — Heure", type: "time", part: 2 },
@@ -75,7 +100,7 @@ export const soulevementSchema: SoulevementFieldDef[] = [
     label: "Entreprise ferroviaire — Entreprise",
     type: "select",
     part: 2,
-    options: opts(["NAVILAND CARGO", "FEROVERGNE"]),
+    options: opts(ENTREPRISE_FERROVIAIRE),
   },
   { name: "ef_personne_contactee", label: "Entreprise ferroviaire — Personne contactée", type: "text", part: 2 },
   { name: "ef_heure", label: "Entreprise ferroviaire — Heure", type: "time", part: 2 },

@@ -18,6 +18,19 @@ var VOIES_OPTIONS = [
 // à étendre au besoin (pas reliée à la table users, cf. décision utilisateur).
 var CONTROLEURS_OPTIONS = ["PATON ROMUALD"];
 
+// Listes manuelles fournies par l'utilisateur (à compléter au besoin, mêmes listes utilisées
+// côté web/src/modules/soulevement/schema.ts).
+var CONSEQUENCES_OPTIONS = [
+  "Soulévemement et déraillement de wagons engageant une voie principale",
+  "Soulévemement et déraillement de wagons engageant une voie de service",
+  "Soulévement et déraillement de wagons engageant un aiguillage",
+  "Soulévement et déraillement de wagons engageant 2 voies de service",
+  "Soulévemement de wagons engageant une voie de service",
+];
+var SERVICE_TECHNIQUE_OPTIONS = ["D. PERROT", "S. CHIPPINGTHON", "Y. BENARD"];
+var GESTIONNAIRE_OPTIONS = ["SDH FER", "SOCORAIL", "WASCOSA", "ERMEWA", "INVEHO", "FREEMAN"];
+var ENTREPRISE_FERROVIAIRE_OPTIONS = ["NRS", "NAVILAND", "FEROVERGNE", "FORWARDIS", "SOLVAY"];
+
 var SOULEVEMENT_SCHEMA = [
   // Partie 1 — Localisation et matériel
   { name: "date", label: "Date", type: "date", part: 1 },
@@ -38,10 +51,22 @@ var SOULEVEMENT_SCHEMA = [
   { name: "meteo", label: "Météo", type: "checkbox-group", part: 1, options: ["Ensoleillé", "Brumeux", "Pluvieux", "Vent"] },
   { name: "moment_journee", label: "Moment", type: "radio", part: 1, options: ["Nuit", "Jour"] },
   { name: "visibilite", label: "Visibilité", type: "radio", part: 1, options: ["Bonne", "Moyenne", "Mauvaise"] },
-  { name: "consequences", label: "Conséquence et mesures conservatoires prises", type: "textarea", part: 1 },
+  {
+    name: "consequences",
+    label: "Conséquence et mesures conservatoires prises",
+    type: "checkbox-group",
+    part: 1,
+    options: CONSEQUENCES_OPTIONS,
+  },
 
   // Partie 2 — Appel aux personnes concernées
-  { name: "st_personne_contactee", label: "Service Technique LHTE — Personne contactée", type: "text", part: 2 },
+  {
+    name: "st_personne_contactee",
+    label: "Service Technique LHTE — Personne contactée",
+    type: "select",
+    part: 2,
+    options: SERVICE_TECHNIQUE_OPTIONS,
+  },
   { name: "st_heure", label: "Service Technique LHTE — Heure", type: "time", part: 2 },
   { name: "st_jointe", label: "Service Technique LHTE — Personne jointe", type: "checkbox", part: 2 },
   { name: "st_telephone", label: "Service Technique LHTE — Téléphone", type: "tel", part: 2 },
@@ -50,7 +75,7 @@ var SOULEVEMENT_SCHEMA = [
     label: "Gestionnaire matériels — Entreprise",
     type: "select",
     part: 2,
-    options: ["NRS", "TOUAX", "Inveho", "Wascosa", "SDH FER"],
+    options: GESTIONNAIRE_OPTIONS,
   },
   { name: "gm_personne_contactee", label: "Gestionnaire matériels — Personne contactée", type: "text", part: 2 },
   { name: "gm_heure", label: "Gestionnaire matériels — Heure", type: "time", part: 2 },
@@ -61,7 +86,7 @@ var SOULEVEMENT_SCHEMA = [
     label: "Entreprise ferroviaire — Entreprise",
     type: "select",
     part: 2,
-    options: ["NAVILAND CARGO", "FEROVERGNE"],
+    options: ENTREPRISE_FERROVIAIRE_OPTIONS,
   },
   { name: "ef_personne_contactee", label: "Entreprise ferroviaire — Personne contactée", type: "text", part: 2 },
   { name: "ef_heure", label: "Entreprise ferroviaire — Heure", type: "time", part: 2 },

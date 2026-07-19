@@ -28,7 +28,7 @@
 // Suffixe de version : change à chaque modification de la mise en page du template pour forcer
 // sa reconstruction automatique (getOrBuildSoulevementTemplate_ ne réutilise que si la clé de
 // propriété correspond exactement) — pas d'étape manuelle nécessaire après un déploiement.
-var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V8";
+var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V9";
 var CB_CHECKED = "☒"; // ☒
 var CB_UNCHECKED = "☐"; // ☐
 var SOU_GREEN = "#2f7d3c";
@@ -196,8 +196,10 @@ function getOrBuildSoulevementTemplate_() {
     }
   });
 
-  // Contenu réparti sur 4 diapositives (chacune ≤ ~310pt de contenu réel, marge confortable sous
-  // les 405pt disponibles) plutôt qu'une page unique — cf. commentaire de tête de fichier.
+  // Contenu réparti sur 3 diapositives (chacune ≤ ~380pt de contenu réel, marge sous les 405pt
+  // disponibles — cf. commentaire de tête de fichier) en gardant l'ordre de lecture logique
+  // (localisation/matériel → contacts → autorisation), plutôt que 4 diapositives strictement
+  // calquées sur les parties du formulaire.
   var y = 20;
   y = souAddHeaderBand_(slide, y);
   y = souAddFieldRowN_(slide, y, [
@@ -206,21 +208,18 @@ function getOrBuildSoulevementTemplate_() {
     { label: "Nom", token: "nom_controleur" },
   ]);
   y = souAddSectionTitle_(slide, y, "Localisation (voies)");
-  souAddCheckboxGrid_(slide, y, "localisation", VOIES_OPTIONS, 6);
+  y = souAddCheckboxGrid_(slide, y, "localisation", VOIES_OPTIONS, 6);
+  y = souAddFieldRow_(slide, y, "Quoi ? (Matériels roulant)", "quoi");
+  souAddContainerWagonGrid_(slide, y);
 
   slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
   y = 20;
-  y = souAddFieldRow_(slide, y, "Quoi ? (Matériels roulant)", "quoi");
-  y = souAddContainerWagonGrid_(slide, y);
   y = souAddCheckboxRowInline_(slide, y, "Longueur wagon", "longueur_wagon", ["40'", "60'", "80'"]);
   y = souAddCheckboxRowInline_(slide, y, "Relevage nécessaire ?", "relevage_necessaire", ["Oui", "Non"]);
   y = souAddCheckboxRowInline_(slide, y, "Météo", "meteo", ["Ensoleillé", "Brumeux", "Pluvieux", "Vent"]);
   y = souAddCheckboxRowInline_(slide, y, "Moment", "moment_journee", ["Nuit", "Jour"]);
   y = souAddCheckboxRowInline_(slide, y, "Visibilité", "visibilite", ["Bonne", "Moyenne", "Mauvaise"]);
-  souAddTextAreaField_(slide, y, "Conséquence et mesures conservatoires prises", "consequences");
-
-  slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
-  y = 20;
+  y = souAddCheckboxList_(slide, y, "Conséquence et mesures conservatoires prises", "consequences", CONSEQUENCES_OPTIONS);
   y = souAddSectionTitle_(slide, y, "Appel aux personnes concernées");
   souAddContactsTable_(slide, y);
 
@@ -354,18 +353,22 @@ function souAddCheckboxRowInline_(slide, y, label, fieldName, options) {
   return y + 24;
 }
 
-function souAddTextAreaField_(slide, y, label, token) {
-  var lbl = slide.insertTextBox(label + " :", SOU_MARGIN, y, SOU_CONTENT_WIDTH, 16);
-  lbl.getText().getTextStyle().setFontSize(10).setBold(true);
+/** Liste verticale de phrases à cocher, une par ligne (options trop longues pour un alignement
+ * horizontal comme souAddCheckboxRowInline_) — ex. "Conséquences et mesures". */
+function souAddCheckboxList_(slide, y, label, fieldName, options) {
+  var lbl = slide.insertTextBox(label + " :", SOU_MARGIN, y, SOU_CONTENT_WIDTH, 14);
+  lbl.getText().getTextStyle().setFontSize(9).setBold(true);
+  y += 15;
 
-  var box = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, SOU_MARGIN, y + 18, SOU_CONTENT_WIDTH, 50);
-  box.getBorder().getLineFill().setSolidFill("#cccccc");
-  box.getFill().setTransparent();
-  var text = box.getText();
-  text.setText("{{" + token + "}}");
-  text.getTextStyle().setFontSize(9);
+  options.forEach(function (opt) {
+    var cb = slide.insertTextBox("{{" + checkboxToken_(fieldName, opt) + "}}", SOU_MARGIN, y, 14, 12);
+    cb.getText().getTextStyle().setFontSize(8);
+    var optLbl = slide.insertTextBox(opt, SOU_MARGIN + 16, y, SOU_CONTENT_WIDTH - 16, 12);
+    optLbl.getText().getTextStyle().setFontSize(7);
+    y += 13;
+  });
 
-  return y + 76;
+  return y + 4;
 }
 
 function souAddContainerWagonGrid_(slide, y) {
