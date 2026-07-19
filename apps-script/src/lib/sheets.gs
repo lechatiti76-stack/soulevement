@@ -118,3 +118,35 @@ function deleteRow_(name, sheetRow) {
     lock.releaseLock();
   }
 }
+
+/**
+ * Supprime toutes les lignes satisfaisant matchFn (ex. nettoyage des lignes liées à un dossier
+ * supprimé dans une table transverse). Les lignes sont retirées en ordre décroissant de numéro
+ * pour ne pas décaler les indices des lignes restant à supprimer.
+ */
+function deleteRowsWhere_(name, matchFn) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = getTable_(name);
+    var values = sheet.getDataRange().getValues();
+    var headers = values[0];
+    var rowsToDelete = [];
+
+    for (var i = 1; i < values.length; i++) {
+      if (matchFn(rowToObject_(headers, values[i]))) rowsToDelete.push(i + 1);
+    }
+
+    rowsToDelete
+      .sort(function (a, b) {
+        return b - a;
+      })
+      .forEach(function (rowNum) {
+        sheet.deleteRow(rowNum);
+      });
+
+    return rowsToDelete.length;
+  } finally {
+    lock.releaseLock();
+  }
+}

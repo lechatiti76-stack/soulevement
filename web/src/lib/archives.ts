@@ -60,3 +60,11 @@ export function downloadCsv(filename: string, csv: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+/** Suppression définitive (admin) — dossier + annexes/commentaires/historique liés. */
+export async function deleteDossier(dossierId: string): Promise<{ deleted: boolean; id: string }> {
+  const res = await fetch(`/api/dossiers/${dossierId}`, { method: "DELETE" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Erreur inattendue");
+  return data;
+}

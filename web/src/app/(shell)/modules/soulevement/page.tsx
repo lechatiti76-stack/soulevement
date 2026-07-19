@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { listDossiers } from "@/modules/soulevement/api";
+import { listDossiers, deleteDossier } from "@/modules/soulevement/api";
+import { useToast } from "@/components/ui/Toast";
 
 const STATUT_LABELS: Record<string, string> = {
   brouillon: "Brouillon",
@@ -13,10 +14,26 @@ const STATUT_LABELS: Record<string, string> = {
 };
 
 export default function SoulevementListPage() {
+  const queryClient = useQueryClient();
+  const { notify } = useToast();
   const { data, isLoading, error } = useQuery({
     queryKey: ["dossiers", "soulevement"],
     queryFn: listDossiers,
   });
+
+  async function handleDelete(e: React.MouseEvent, id: string, numero: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(`Supprimer définitivement la fiche ${numero} ? Cette action est irréversible.`)) return;
+
+    try {
+      await deleteDossier(id);
+      notify("Fiche supprimée", "success");
+      queryClient.invalidateQueries({ queryKey: ["dossiers", "soulevement"] });
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -44,7 +61,16 @@ export default function SoulevementListPage() {
               className="flex items-center justify-between rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elevated))] px-4 py-3 text-sm transition hover:border-brand-500"
             >
               <span className="font-medium">{d.numero}</span>
-              <span className="text-[rgb(var(--text-muted))]">{STATUT_LABELS[d.statut] || d.statut}</span>
+              <span className="flex items-center gap-3">
+                <span className="text-[rgb(var(--text-muted))]">{STATUT_LABELS[d.statut] || d.statut}</span>
+                <button
+                  type="button"
+                  onClick={(e) => handleDelete(e, d.id, d.numero)}
+                  className="text-xs text-red-500 hover:underline"
+                >
+                  Supprimer
+                </button>
+              </span>
             </Link>
           </motion.div>
         ))}

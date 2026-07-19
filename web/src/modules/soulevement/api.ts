@@ -62,3 +62,10 @@ export function deleteAnnexe(dossierId: string, annexeId: string) {
     method: "DELETE",
   });
 }
+
+/** Suppression définitive (admin) — dossier + annexes/commentaires/historique liés. */
+export function deleteDossier(id: string) {
+  return request<{ deleted: boolean; id: string }>(`/api/dossiers/${id}`, {
+    method: "DELETE",
+  });
+}

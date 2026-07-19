@@ -32,6 +32,7 @@ function dossiersHandlers_() {
     "dossiers.get": dossiersGet_,
     "dossiers.list": dossiersList_,
     "dossiers.addComment": dossiersAddComment_,
+    "dossiers.delete": dossiersDelete_,
   };
 }
 
@@ -248,6 +249,51 @@ function dossiersAddComment_(body) {
   logHistorique_(body.id, "commentaire", session.sub, "");
 
   return dossierGetById_(body.id, session);
+}
+
+/**
+ * Suppression définitive (admin uniquement) — dossier, ses lignes liées (annexes, commentaires,
+ * historique, document source, extraction IA, entrée archives) et son dossier Drive. Confirmation
+ * demandée côté frontend (window.confirm) avant l'appel — pas de corbeille/annulation possible.
+ */
+function dossiersDelete_(body) {
+  var session = requireAuth_(body);
+  requireAdmin_(session);
+
+  var found = findRow_("docmod_dossiers", function (d) {
+    return String(d.id) === String(body.id);
+  });
+  if (!found) throw new Error("Dossier introuvable");
+  var dossier = found.data;
+
+  try {
+    getDossierFolder_(normalizeModule_(dossier.module), dossier.numero).setTrashed(true);
+  } catch (e) {
+    // dossier Drive déjà absent/inaccessible — les lignes Sheets sont nettoyées quand même
+  }
+
+  deleteRowsWhere_("docmod_annexes", function (a) {
+    return String(a.dossier_id) === String(dossier.id);
+  });
+  deleteRowsWhere_("docmod_commentaires", function (c) {
+    return String(c.dossier_id) === String(dossier.id);
+  });
+  deleteRowsWhere_("docmod_historique", function (h) {
+    return String(h.dossier_id) === String(dossier.id);
+  });
+  deleteRowsWhere_("docmod_documents_source", function (s) {
+    return String(s.dossier_id) === String(dossier.id);
+  });
+  deleteRowsWhere_("docmod_extraction_ia", function (e) {
+    return String(e.dossier_id) === String(dossier.id);
+  });
+  deleteRowsWhere_("archives_index", function (a) {
+    return String(a.dossier_id) === String(dossier.id);
+  });
+
+  deleteRow_("docmod_dossiers", found.sheetRow);
+
+  return { deleted: true, id: dossier.id };
 }
 
 function dossierGetById_(id, session) {

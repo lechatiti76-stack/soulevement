@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { searchArchives, archivesToCsv, downloadCsv, type ArchiveSearchParams } from "@/lib/archives";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { searchArchives, archivesToCsv, downloadCsv, deleteDossier, type ArchiveSearchParams } from "@/lib/archives";
 import { useToast } from "@/components/ui/Toast";
 
 const STATUT_OPTIONS = [
@@ -21,6 +21,7 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 
 export default function ArchivesPage() {
   const { notify } = useToast();
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [statut, setStatut] = useState("");
   const [sort, setSort] = useState("date_creation:desc");
@@ -35,6 +36,17 @@ export default function ArchivesPage() {
     if (!data?.archives.length) return;
     downloadCsv(`archives-${new Date().toISOString().slice(0, 10)}.csv`, archivesToCsv(data.archives));
     notify("Export CSV téléchargé", "success");
+  }
+
+  async function handleDelete(dossierId: string, numero: string) {
+    if (!window.confirm(`Supprimer définitivement le dossier ${numero} ? Cette action est irréversible.`)) return;
+    try {
+      await deleteDossier(dossierId);
+      notify("Dossier supprimé", "success");
+      queryClient.invalidateQueries({ queryKey: ["archives"] });
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    }
   }
 
   return (
@@ -108,6 +120,7 @@ export default function ArchivesPage() {
               <th className="px-4 py-3 font-medium">Créé le</th>
               <th className="px-4 py-3 font-medium">Validé le</th>
               <th className="px-4 py-3 font-medium">PDF</th>
+              <th className="px-4 py-3 font-medium print:hidden">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -141,11 +154,20 @@ export default function ArchivesPage() {
                     </a>
                   )}
                 </td>
+                <td className="px-4 py-3 print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(a.dossier_id, a.numero_dossier)}
+                    className="text-xs text-red-500 hover:underline"
+                  >
+                    Supprimer
+                  </button>
+                </td>
               </tr>
             ))}
             {data && data.archives.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-[rgb(var(--text-muted))]">
+                <td colSpan={7} className="px-4 py-6 text-center text-[rgb(var(--text-muted))]">
                   Aucune archive ne correspond à ces critères.
                 </td>
               </tr>
