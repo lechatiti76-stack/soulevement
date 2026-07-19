@@ -15,16 +15,24 @@
  * uploader manuellement. Reproduction fidèle de l'organisation/libellés/cases à cocher/code
  * couleur vert du document source, sans viser une réplique pixel-perfect du graphique
  * original (icônes de wagons non reproduites). Cf. ARCHITECTURE.md §8.
+ *
+ * Format de page : 720×405pt (16:9 standard), FIXE — constaté à l'usage que
+ * Slides.Presentations.create() (service avancé) ignore silencieusement pageSize et revient
+ * toujours à cette taille par défaut, y compris via un appel REST direct (UrlFetchApp) qui
+ * contourne le binding Apps Script. Plutôt qu'une page unique surdimensionnée (dont la hauteur
+ * demandée n'était de toute façon jamais appliquée), le contenu est réparti sur plusieurs
+ * diapositives — une diapositive Slides = une page PDF à l'export, donc c'est un découpage
+ * naturel plutôt qu'un contournement fragile.
  */
 
 // Suffixe de version : change à chaque modification de la mise en page du template pour forcer
 // sa reconstruction automatique (getOrBuildSoulevementTemplate_ ne réutilise que si la clé de
 // propriété correspond exactement) — pas d'étape manuelle nécessaire après un déploiement.
-var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V4";
+var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V8";
 var CB_CHECKED = "☒"; // ☒
 var CB_UNCHECKED = "☐"; // ☐
 var SOU_GREEN = "#2f7d3c";
-var SOU_PAGE_WIDTH = 612;
+var SOU_PAGE_WIDTH = 720;
 var SOU_MARGIN = 24;
 var SOU_CONTENT_WIDTH = SOU_PAGE_WIDTH - SOU_MARGIN * 2;
 
@@ -83,9 +91,13 @@ function buildSoulevementReplacements_(dossier, formData) {
   return replacements;
 }
 
-/** Les signatures sont des images, donc insérées après replaceAllText (qui n'agit que sur le texte). */
+/**
+ * Les signatures sont des images, donc insérées après replaceAllText (qui n'agit que sur le
+ * texte). Le contenu étant réparti sur plusieurs diapositives (cf. commentaire de tête de
+ * fichier), on cherche le jeton sur chacune plutôt que sur la seule première.
+ */
 function insertSoulevementSignatures_(presentation, formData) {
-  var slide = presentation.getSlides()[0];
+  var slides = presentation.getSlides();
 
   SOULEVEMENT_SCHEMA.filter(function (f) {
     return f.type === "signature";
@@ -94,13 +106,22 @@ function insertSoulevementSignatures_(presentation, formData) {
     if (!dataUrl) return;
 
     var token = "{{" + field.name + "}}";
-    var target = slide.getShapes().filter(function (shape) {
-      try {
-        return shape.getText().asString().indexOf(token) !== -1;
-      } catch (e) {
-        return false;
+    var target = null;
+    var targetSlide = null;
+    slides.forEach(function (s) {
+      if (target) return;
+      var found = s.getShapes().filter(function (shape) {
+        try {
+          return shape.getText().asString().indexOf(token) !== -1;
+        } catch (e) {
+          return false;
+        }
+      })[0];
+      if (found) {
+        target = found;
+        targetSlide = s;
       }
-    })[0];
+    });
     if (!target) return;
 
     try {
@@ -113,7 +134,7 @@ function insertSoulevementSignatures_(presentation, formData) {
       var blob = Utilities.newBlob(bytes, "image/png", field.name + ".png");
 
       target.getText().setText("");
-      slide.insertImage(blob, left, top, width, height);
+      targetSlide.insertImage(blob, left, top, width, height);
     } catch (err) {
       // signature illisible — la génération du PDF continue sans bloquer
     }
@@ -165,19 +186,7 @@ function getOrBuildSoulevementTemplate_() {
     }
   }
 
-  // SlidesApp.create() (service de base) ne permet pas de choisir le format de page — seul le
-  // service avancé Slides (Slides.Presentations.create()) l'expose, via pageSize à la création.
-  var created = Slides.Presentations.create({
-    title: "Soulèvement - Template",
-    // Hauteur calée sur le contenu réel (~914pt une fois toutes les sections empilées, cf. la
-    // suite de cette fonction) + marge — 1700pt (valeur initiale, trop généreuse) laissait
-    // ~800pt de blanc en bas de page, donnant l'impression que le PDF "s'arrête" en haut.
-    pageSize: {
-      width: { magnitude: SOU_PAGE_WIDTH, unit: "PT" },
-      height: { magnitude: 960, unit: "PT" },
-    },
-  });
-  var presentation = SlidesApp.openById(created.presentationId);
+  var presentation = SlidesApp.create("Soulèvement - Template");
   var slide = presentation.getSlides()[0];
   slide.getShapes().forEach(function (shape) {
     try {
@@ -187,6 +196,8 @@ function getOrBuildSoulevementTemplate_() {
     }
   });
 
+  // Contenu réparti sur 4 diapositives (chacune ≤ ~310pt de contenu réel, marge confortable sous
+  // les 405pt disponibles) plutôt qu'une page unique — cf. commentaire de tête de fichier.
   var y = 20;
   y = souAddHeaderBand_(slide, y);
   y = souAddFieldRowN_(slide, y, [
@@ -195,7 +206,10 @@ function getOrBuildSoulevementTemplate_() {
     { label: "Nom", token: "nom_controleur" },
   ]);
   y = souAddSectionTitle_(slide, y, "Localisation (voies)");
-  y = souAddCheckboxGrid_(slide, y, "localisation", VOIES_OPTIONS, 6);
+  souAddCheckboxGrid_(slide, y, "localisation", VOIES_OPTIONS, 6);
+
+  slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+  y = 20;
   y = souAddFieldRow_(slide, y, "Quoi ? (Matériels roulant)", "quoi");
   y = souAddContainerWagonGrid_(slide, y);
   y = souAddCheckboxRowInline_(slide, y, "Longueur wagon", "longueur_wagon", ["40'", "60'", "80'"]);
@@ -203,15 +217,19 @@ function getOrBuildSoulevementTemplate_() {
   y = souAddCheckboxRowInline_(slide, y, "Météo", "meteo", ["Ensoleillé", "Brumeux", "Pluvieux", "Vent"]);
   y = souAddCheckboxRowInline_(slide, y, "Moment", "moment_journee", ["Nuit", "Jour"]);
   y = souAddCheckboxRowInline_(slide, y, "Visibilité", "visibilite", ["Bonne", "Moyenne", "Mauvaise"]);
-  y = souAddTextAreaField_(slide, y, "Conséquence et mesures conservatoires prises", "consequences");
+  souAddTextAreaField_(slide, y, "Conséquence et mesures conservatoires prises", "consequences");
 
+  slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+  y = 20;
   y = souAddSectionTitle_(slide, y, "Appel aux personnes concernées");
-  y = souAddContactsTable_(slide, y);
+  souAddContactsTable_(slide, y);
 
+  slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+  y = 20;
   y = souAddSectionTitle_(slide, y, "Autorisation de manœuvre reçue");
   y = souAddSignaturesRow_(slide, y);
   y = souAddFieldTriplet_(slide, y, "Date/heure", ["date_heure_st", "date_heure_gm", "date_heure_ef"]);
-  y = souAddFieldPair_(slide, y, "Validation Aiguilleur le", "validation_aiguilleur_le", "Fiche clôturée le", "fiche_cloturee_le");
+  souAddFieldPair_(slide, y, "Validation Aiguilleur le", "validation_aiguilleur_le", "Fiche clôturée le", "fiche_cloturee_le");
 
   presentation.saveAndClose();
 
