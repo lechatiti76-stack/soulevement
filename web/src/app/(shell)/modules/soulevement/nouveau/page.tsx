@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormEngine } from "@/modules/nouvelle-demande/components/FormEngine";
+import { WagonSlotsField } from "@/modules/soulevement/components/WagonSlotsField";
 import {
   soulevementFieldsForPart,
+  soulevementPart1Sections,
   SOULEVEMENT_PART_LABELS,
   type SoulevementPart,
 } from "@/modules/soulevement/schema";
@@ -23,8 +25,14 @@ export default function SoulevementWizardPage() {
   const [preparing, setPreparing] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const created = useRef(false);
 
   useEffect(() => {
+    // Garde contre le double-appel de useEffect en React StrictMode (dev) : sans elle, deux
+    // dossiers brouillon distincts sont créés au montage de la page (constaté en test).
+    if (created.current) return;
+    created.current = true;
+
     createDossier()
       .then(({ dossier }) => {
         setDossierId(dossier.id);
@@ -102,11 +110,30 @@ export default function SoulevementWizardPage() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <FormEngine
-        schema={soulevementFieldsForPart(part)}
-        values={values}
-        onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
-      />
+      {part === 1 ? (
+        <>
+          <FormEngine
+            schema={soulevementPart1Sections().before}
+            values={values}
+            onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+          />
+          <WagonSlotsField
+            values={values}
+            onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+          />
+          <FormEngine
+            schema={soulevementPart1Sections().after}
+            values={values}
+            onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+          />
+        </>
+      ) : (
+        <FormEngine
+          schema={soulevementFieldsForPart(part)}
+          values={values}
+          onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+        />
+      )}
 
       <div className="flex justify-between gap-3">
         <button

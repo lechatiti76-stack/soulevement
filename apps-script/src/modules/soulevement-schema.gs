@@ -14,10 +14,15 @@ var VOIES_OPTIONS = [
   "VF5", "VF1", "VR9", "VR5", "VFL1",
 ];
 
+// Personnes pouvant être désignées comme contrôleur (champ "Nom", partie 1) — liste manuelle,
+// à étendre au besoin (pas reliée à la table users, cf. décision utilisateur).
+var CONTROLEURS_OPTIONS = ["PATON ROMUALD"];
+
 var SOULEVEMENT_SCHEMA = [
   // Partie 1 — Localisation et matériel
   { name: "date", label: "Date", type: "date", part: 1 },
   { name: "heure", label: "Heure", type: "time", part: 1 },
+  { name: "nom_controleur", label: "Nom", type: "select", part: 1, options: CONTROLEURS_OPTIONS },
   { name: "localisation", label: "Localisation (voies)", type: "checkbox-group", part: 1, options: VOIES_OPTIONS },
   { name: "quoi", label: "Quoi ? (Matériels roulant)", type: "text", part: 1 },
   { name: "conteneur_encadrant_lh", label: "N° Conteneur — Encadrant LH", type: "text", part: 1, photoOcr: true },

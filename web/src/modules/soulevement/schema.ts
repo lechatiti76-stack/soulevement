@@ -14,14 +14,29 @@ function opts(values: string[]) {
   return values.map((v) => ({ value: v, label: v }));
 }
 
+// Personnes pouvant être désignées comme contrôleur (champ "Nom") — liste manuelle, à étendre
+// au besoin (pas reliée à la page Utilisateurs, cf. décision utilisateur).
+const CONTROLEURS = ["PATON ROMUALD"];
+
 export type SoulevementPart = 1 | 2 | 3;
 
 export type SoulevementFieldDef = FieldDef & { part: SoulevementPart };
+
+/** Les 4 positions possibles pour un conteneur/wagon — de 1 à 4 selon les cas, cf. WagonSlotsField. */
+export const WAGON_SLOTS = [
+  { key: "encadrant_lh", label: "Encadrant LH", conteneurField: "conteneur_encadrant_lh", wagonField: "wagon_encadrant_lh" },
+  { key: "souleve_lh", label: "Soulevé LH", conteneurField: "conteneur_souleve_lh", wagonField: "wagon_souleve_lh" },
+  { key: "souleve_paris", label: "Soulevé PARIS", conteneurField: "conteneur_souleve_paris", wagonField: "wagon_souleve_paris" },
+  { key: "encadrant_paris", label: "Encadrant PARIS", conteneurField: "conteneur_encadrant_paris", wagonField: "wagon_encadrant_paris" },
+] as const;
+
+const WAGON_SLOT_FIELD_NAMES = new Set<string>(WAGON_SLOTS.flatMap((s) => [s.conteneurField, s.wagonField]));
 
 export const soulevementSchema: SoulevementFieldDef[] = [
   // Partie 1 — Localisation et matériel
   { name: "date", label: "Date", type: "date", part: 1, required: true },
   { name: "heure", label: "Heure", type: "time", part: 1, required: true },
+  { name: "nom_controleur", label: "Nom", type: "select", part: 1, options: opts(CONTROLEURS) },
   { name: "localisation", label: "Localisation (voies)", type: "checkbox-group", part: 1, options: opts(VOIES) },
   { name: "quoi", label: "Quoi ? (Matériels roulant)", type: "text", part: 1 },
   { name: "conteneur_encadrant_lh", label: "N° Conteneur — Encadrant LH", type: "text", part: 1, photoOcr: true },
@@ -83,4 +98,14 @@ export const SOULEVEMENT_PART_LABELS: Record<SoulevementPart, string> = {
 
 export function soulevementFieldsForPart(part: SoulevementPart) {
   return soulevementSchema.filter((f) => f.part === part);
+}
+
+/** Découpe la partie 1 autour des 8 champs conteneur/wagon, rendus séparément par
+ * WagonSlotsField (ajout dynamique de 1 à 4 wagons) plutôt que par FormEngine. */
+export function soulevementPart1Sections(): { before: SoulevementFieldDef[]; after: SoulevementFieldDef[] } {
+  const part1 = soulevementFieldsForPart(1);
+  const isWagonField = (f: SoulevementFieldDef) => WAGON_SLOT_FIELD_NAMES.has(f.name);
+  const firstIdx = part1.findIndex(isWagonField);
+  const lastIdx = part1.reduce((acc, f, i) => (isWagonField(f) ? i : acc), -1);
+  return { before: part1.slice(0, firstIdx), after: part1.slice(lastIdx + 1) };
 }

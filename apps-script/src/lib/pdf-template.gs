@@ -17,7 +17,10 @@
  * original (icônes de wagons non reproduites). Cf. ARCHITECTURE.md §8.
  */
 
-var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID";
+// Suffixe de version : change à chaque modification de la mise en page du template pour forcer
+// sa reconstruction automatique (getOrBuildSoulevementTemplate_ ne réutilise que si la clé de
+// propriété correspond exactement) — pas d'étape manuelle nécessaire après un déploiement.
+var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V3";
 var CB_CHECKED = "☒"; // ☒
 var CB_UNCHECKED = "☐"; // ☐
 var SOU_GREEN = "#2f7d3c";
@@ -129,8 +132,19 @@ function getOrBuildSoulevementTemplate_() {
     }
   }
 
-  var presentation = SlidesApp.create("Soulèvement - Template");
-  presentation.setPageSize(SOU_PAGE_WIDTH, 1700);
+  // SlidesApp.create() (service de base) ne permet pas de choisir le format de page — seul le
+  // service avancé Slides (Slides.Presentations.create()) l'expose, via pageSize à la création.
+  var created = Slides.Presentations.create({
+    title: "Soulèvement - Template",
+    // Hauteur calée sur le contenu réel (~914pt une fois toutes les sections empilées, cf. la
+    // suite de cette fonction) + marge — 1700pt (valeur initiale, trop généreuse) laissait
+    // ~800pt de blanc en bas de page, donnant l'impression que le PDF "s'arrête" en haut.
+    pageSize: {
+      width: { magnitude: SOU_PAGE_WIDTH, unit: "PT" },
+      height: { magnitude: 960, unit: "PT" },
+    },
+  });
+  var presentation = SlidesApp.openById(created.presentationId);
   var slide = presentation.getSlides()[0];
   slide.getShapes().forEach(function (shape) {
     try {
@@ -142,7 +156,11 @@ function getOrBuildSoulevementTemplate_() {
 
   var y = 20;
   y = souAddHeaderBand_(slide, y);
-  y = souAddFieldPair_(slide, y, "Date", "date", "Heure", "heure");
+  y = souAddFieldRowN_(slide, y, [
+    { label: "Date", token: "date" },
+    { label: "Heure", token: "heure" },
+    { label: "Nom", token: "nom_controleur" },
+  ]);
   y = souAddSectionTitle_(slide, y, "Localisation (voies)");
   y = souAddCheckboxGrid_(slide, y, "localisation", VOIES_OPTIONS, 6);
   y = souAddFieldRow_(slide, y, "Quoi ? (Matériels roulant)", "quoi");
@@ -215,6 +233,22 @@ function souAddFieldPair_(slide, y, label1, token1, label2, token2) {
   l2.getText().getTextStyle().setFontSize(10).setBold(true);
   var v2 = slide.insertTextBox("{{" + token2 + "}}", SOU_MARGIN + half, y + 18, half - 10, 18);
   v2.getText().getTextStyle().setFontSize(10);
+
+  return y + 44;
+}
+
+/** Rangée à N colonnes égales, chacune avec son propre libellé (contrairement à souAddFieldTriplet_,
+ * qui répète le même libellé pour N jetons). */
+function souAddFieldRowN_(slide, y, fields) {
+  var colWidth = SOU_CONTENT_WIDTH / fields.length;
+
+  fields.forEach(function (f, i) {
+    var x = SOU_MARGIN + i * colWidth;
+    var lbl = slide.insertTextBox(f.label + " :", x, y, colWidth - 10, 18);
+    lbl.getText().getTextStyle().setFontSize(10).setBold(true);
+    var val = slide.insertTextBox("{{" + f.token + "}}", x, y + 18, colWidth - 10, 18);
+    val.getText().getTextStyle().setFontSize(10);
+  });
 
   return y + 44;
 }

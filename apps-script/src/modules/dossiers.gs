@@ -351,6 +351,10 @@ function nextDossierNumero_(module) {
     } else {
       appendRowUnlocked_("settings", { cle: counterKey, valeur: String(next) });
     }
+    // Sans flush, l'écriture peut ne pas être visible à l'exécution concurrente suivante dès
+    // qu'elle obtient le lock (constaté : deux dossiers créés à ~1s d'intervalle ont reçu le
+    // même numéro) — le lock à lui seul sérialise l'exécution mais pas la durabilité de l'écriture.
+    SpreadsheetApp.flush();
 
     return config.prefix + "-" + new Date().getFullYear() + "-" + ("0000" + next).slice(-4);
   } finally {
