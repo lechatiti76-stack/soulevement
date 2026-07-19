@@ -44,6 +44,7 @@ var SOULEVEMENT_SCHEMA = [
   { name: "st_personne_contactee", label: "Service Technique LHTE — Personne contactée", type: "text", part: 2 },
   { name: "st_heure", label: "Service Technique LHTE — Heure", type: "time", part: 2 },
   { name: "st_jointe", label: "Service Technique LHTE — Personne jointe", type: "checkbox", part: 2 },
+  { name: "st_telephone", label: "Service Technique LHTE — Téléphone", type: "tel", part: 2 },
   {
     name: "gm_entreprise",
     label: "Gestionnaire matériels — Entreprise",
@@ -54,6 +55,7 @@ var SOULEVEMENT_SCHEMA = [
   { name: "gm_personne_contactee", label: "Gestionnaire matériels — Personne contactée", type: "text", part: 2 },
   { name: "gm_heure", label: "Gestionnaire matériels — Heure", type: "time", part: 2 },
   { name: "gm_jointe", label: "Gestionnaire matériels — Personne jointe", type: "checkbox", part: 2 },
+  { name: "gm_telephone", label: "Gestionnaire matériels — Téléphone", type: "tel", part: 2 },
   {
     name: "ef_entreprise",
     label: "Entreprise ferroviaire — Entreprise",
@@ -64,6 +66,7 @@ var SOULEVEMENT_SCHEMA = [
   { name: "ef_personne_contactee", label: "Entreprise ferroviaire — Personne contactée", type: "text", part: 2 },
   { name: "ef_heure", label: "Entreprise ferroviaire — Heure", type: "time", part: 2 },
   { name: "ef_jointe", label: "Entreprise ferroviaire — Personne jointe", type: "checkbox", part: 2 },
+  { name: "ef_telephone", label: "Entreprise ferroviaire — Téléphone", type: "tel", part: 2 },
 
   // Partie 3 — Autorisation et clôture
   { name: "signature_st", label: "Signature — Service Technique", type: "signature", part: 3 },

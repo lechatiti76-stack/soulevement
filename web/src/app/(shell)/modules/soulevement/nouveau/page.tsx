@@ -4,14 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormEngine } from "@/modules/nouvelle-demande/components/FormEngine";
 import { WagonSlotsField } from "@/modules/soulevement/components/WagonSlotsField";
+import { AnnexePhotosField } from "@/modules/soulevement/components/AnnexePhotosField";
 import {
   soulevementFieldsForPart,
   soulevementPart1Sections,
+  soulevementPart3Sections,
   SOULEVEMENT_PART_LABELS,
   type SoulevementPart,
 } from "@/modules/soulevement/schema";
-import { createDossier, saveDossierForm, validateDossier } from "@/modules/soulevement/api";
+import { createDossier, saveDossierForm, validateDossier, addAnnexe, deleteAnnexe } from "@/modules/soulevement/api";
 import { useToast } from "@/components/ui/Toast";
+import type { Annexe } from "@/lib/annexes";
 
 const PARTS: SoulevementPart[] = [1, 2, 3];
 
@@ -25,6 +28,8 @@ export default function SoulevementWizardPage() {
   const [preparing, setPreparing] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Annexe[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const created = useRef(false);
 
   useEffect(() => {
@@ -60,6 +65,33 @@ export default function SoulevementWizardPage() {
 
   function handlePrevious() {
     setPart((p) => (p > 1 ? ((p - 1) as SoulevementPart) : p));
+  }
+
+  async function handleUploadPhotos(files: { fileBase64: string; fileName: string; mimeType: string }[]) {
+    if (!dossierId) return;
+    setUploadingPhoto(true);
+    try {
+      let result;
+      for (const file of files) {
+        result = await addAnnexe(dossierId, "photo", file);
+      }
+      if (result) setPhotos(result.annexes.filter((a) => a.type === "photo"));
+      notify("Photo ajoutée", "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handleDeletePhoto(annexeId: string) {
+    if (!dossierId) return;
+    try {
+      const result = await deleteAnnexe(dossierId, annexeId);
+      setPhotos(result.annexes.filter((a) => a.type === "photo"));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    }
   }
 
   async function handleValidate() {
@@ -123,6 +155,25 @@ export default function SoulevementWizardPage() {
           />
           <FormEngine
             schema={soulevementPart1Sections().after}
+            values={values}
+            onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+          />
+        </>
+      ) : part === 3 ? (
+        <>
+          <FormEngine
+            schema={soulevementPart3Sections().before}
+            values={values}
+            onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+          />
+          <AnnexePhotosField
+            photos={photos}
+            uploading={uploadingPhoto}
+            onUpload={handleUploadPhotos}
+            onDelete={handleDeletePhoto}
+          />
+          <FormEngine
+            schema={soulevementPart3Sections().after}
             values={values}
             onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
           />

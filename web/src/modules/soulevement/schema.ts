@@ -58,6 +58,7 @@ export const soulevementSchema: SoulevementFieldDef[] = [
   { name: "st_personne_contactee", label: "Service Technique LHTE — Personne contactée", type: "text", part: 2 },
   { name: "st_heure", label: "Service Technique LHTE — Heure", type: "time", part: 2 },
   { name: "st_jointe", label: "Personne jointe", type: "checkbox", part: 2 },
+  { name: "st_telephone", label: "Téléphone", type: "tel", part: 2 },
   {
     name: "gm_entreprise",
     label: "Gestionnaire matériels — Entreprise",
@@ -68,6 +69,7 @@ export const soulevementSchema: SoulevementFieldDef[] = [
   { name: "gm_personne_contactee", label: "Gestionnaire matériels — Personne contactée", type: "text", part: 2 },
   { name: "gm_heure", label: "Gestionnaire matériels — Heure", type: "time", part: 2 },
   { name: "gm_jointe", label: "Personne jointe", type: "checkbox", part: 2 },
+  { name: "gm_telephone", label: "Téléphone", type: "tel", part: 2 },
   {
     name: "ef_entreprise",
     label: "Entreprise ferroviaire — Entreprise",
@@ -78,6 +80,7 @@ export const soulevementSchema: SoulevementFieldDef[] = [
   { name: "ef_personne_contactee", label: "Entreprise ferroviaire — Personne contactée", type: "text", part: 2 },
   { name: "ef_heure", label: "Entreprise ferroviaire — Heure", type: "time", part: 2 },
   { name: "ef_jointe", label: "Personne jointe", type: "checkbox", part: 2 },
+  { name: "ef_telephone", label: "Téléphone", type: "tel", part: 2 },
 
   // Partie 3 — Autorisation et clôture
   { name: "signature_st", label: "Signature — Service Technique", type: "signature", part: 3 },
@@ -108,4 +111,12 @@ export function soulevementPart1Sections(): { before: SoulevementFieldDef[]; aft
   const firstIdx = part1.findIndex(isWagonField);
   const lastIdx = part1.reduce((acc, f, i) => (isWagonField(f) ? i : acc), -1);
   return { before: part1.slice(0, firstIdx), after: part1.slice(lastIdx + 1) };
+}
+
+/** Découpe la partie 3 avant "Validation Aiguilleur le", où s'insère AnnexePhotosField
+ * (miniatures dans le formulaire ; photos en taille réelle sur des pages PDF supplémentaires). */
+export function soulevementPart3Sections(): { before: SoulevementFieldDef[]; after: SoulevementFieldDef[] } {
+  const part3 = soulevementFieldsForPart(3);
+  const idx = part3.findIndex((f) => f.name === "validation_aiguilleur_le");
+  return { before: part3.slice(0, idx), after: part3.slice(idx) };
 }

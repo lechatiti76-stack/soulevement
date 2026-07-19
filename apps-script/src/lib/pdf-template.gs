@@ -20,7 +20,7 @@
 // Suffixe de version : change à chaque modification de la mise en page du template pour forcer
 // sa reconstruction automatique (getOrBuildSoulevementTemplate_ ne réutilise que si la clé de
 // propriété correspond exactement) — pas d'étape manuelle nécessaire après un déploiement.
-var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V3";
+var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V4";
 var CB_CHECKED = "☒"; // ☒
 var CB_UNCHECKED = "☐"; // ☐
 var SOU_GREEN = "#2f7d3c";
@@ -41,6 +41,7 @@ function buildAndExportSoulevementPdf_(dossier) {
   });
 
   insertSoulevementSignatures_(presentation, formData);
+  souAddPhotoAnnexSlides_(presentation, dossier);
   presentation.saveAndClose();
 
   var folder = getDossierFolder_("soulevement", dossier.numero);
@@ -115,6 +116,38 @@ function insertSoulevementSignatures_(presentation, formData) {
       slide.insertImage(blob, left, top, width, height);
     } catch (err) {
       // signature illisible — la génération du PDF continue sans bloquer
+    }
+  });
+}
+
+/**
+ * Une page supplémentaire par photo annexe (docmod_annexes, type "photo"), en taille réelle
+ * (mise à l'échelle pour tenir sur la page sans dépasser, sans agrandir au-delà de la résolution
+ * native). Miniatures affichées dans le formulaire (AnnexePhotosField) ; ici la photo pleine
+ * page, après le contenu principal — un slide Google Slides = une page PDF à l'export.
+ */
+function souAddPhotoAnnexSlides_(presentation, dossier) {
+  var photos = readTable_("docmod_annexes").filter(function (a) {
+    return String(a.dossier_id) === String(dossier.id) && a.type === "photo";
+  });
+  if (!photos.length) return;
+
+  var pageW = presentation.getPageWidth();
+  var pageH = presentation.getPageHeight();
+
+  photos.forEach(function (photo) {
+    try {
+      var blob = DriveApp.getFileById(photo.drive_file_id).getBlob();
+      var slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+      var image = slide.insertImage(blob);
+
+      var scale = Math.min(pageW / image.getWidth(), pageH / image.getHeight(), 1);
+      var w = image.getWidth() * scale;
+      var h = image.getHeight() * scale;
+      image.setWidth(w).setHeight(h);
+      image.setLeft((pageW - w) / 2).setTop((pageH - h) / 2);
+    } catch (err) {
+      // photo illisible — la génération du PDF continue sans bloquer
     }
   });
 }
@@ -348,13 +381,20 @@ function souAddContainerWagonGrid_(slide, y) {
 
 function souAddContactsTable_(slide, y) {
   var columns = [
-    { title: "Service Technique LHTE", contactee: "st_personne_contactee", heure: "st_heure", jointe: "st_jointe" },
+    {
+      title: "Service Technique LHTE",
+      contactee: "st_personne_contactee",
+      heure: "st_heure",
+      jointe: "st_jointe",
+      telephone: "st_telephone",
+    },
     {
       title: "Gestionnaire matériels",
       entreprise: "gm_entreprise",
       contactee: "gm_personne_contactee",
       heure: "gm_heure",
       jointe: "gm_jointe",
+      telephone: "gm_telephone",
     },
     {
       title: "Entreprise ferroviaire",
@@ -362,6 +402,7 @@ function souAddContactsTable_(slide, y) {
       contactee: "ef_personne_contactee",
       heure: "ef_heure",
       jointe: "ef_jointe",
+      telephone: "ef_telephone",
     },
   ];
   var colWidth = SOU_CONTENT_WIDTH / 3;
@@ -396,8 +437,13 @@ function souAddContactsTable_(slide, y) {
 
     var jCb = slide.insertTextBox("{{" + col.jointe + "}}", x, cy, 14, 16);
     jCb.getText().getTextStyle().setFontSize(10);
-    var jLbl = slide.insertTextBox("Personne jointe", x + 16, cy, colWidth - 22, 16);
+    var jLbl = slide.insertTextBox("Jointe", x + 16, cy, 50, 16);
     jLbl.getText().getTextStyle().setFontSize(8);
+
+    var tLbl = slide.insertTextBox("Tél :", x + 70, cy, 30, 16);
+    tLbl.getText().getTextStyle().setFontSize(8);
+    var tVal = slide.insertTextBox("{{" + col.telephone + "}}", x + 100, cy, colWidth - 106, 16);
+    tVal.getText().getTextStyle().setFontSize(8);
   });
 
   return y + 140;

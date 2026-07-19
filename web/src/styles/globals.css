@@ -22,3 +22,11 @@ body {
   background-color: rgb(var(--bg));
   color: rgb(var(--text));
 }
+
+/* Le reset Tailwind (@tailwind base) neutralise l'apparence native de certains champs sur
+   mobile — force le rendu natif pour que le sélecteur tactile (horloge/calendrier) s'ouvre. */
+input[type="time"],
+input[type="date"] {
+  -webkit-appearance: auto;
+  appearance: auto;
+}
