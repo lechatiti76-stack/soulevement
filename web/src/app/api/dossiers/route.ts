@@ -21,9 +21,10 @@ export async function POST(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
   const body = await req.json().catch(() => null);
-  // Le module "soulevement" ne dépose pas de document source (cf. MODULE_CONFIG côté Apps
-  // Script) — seul "nouvelle-demande" (module par défaut) l'exige.
-  if (body?.module !== "soulevement" && (!body?.fileBase64 || !body?.fileName || !body?.mimeType)) {
+  // Seul "nouvelle-demande" (module par défaut, absent de MODULES_SANS_SOURCE) exige un
+  // document source — cf. MODULE_CONFIG côté Apps Script (requiresSource).
+  const MODULES_SANS_SOURCE = ["soulevement", "bris-barrieres"];
+  if (!MODULES_SANS_SOURCE.includes(body?.module) && (!body?.fileBase64 || !body?.fileName || !body?.mimeType)) {
     return NextResponse.json({ error: "Document source requis" }, { status: 400 });
   }
 

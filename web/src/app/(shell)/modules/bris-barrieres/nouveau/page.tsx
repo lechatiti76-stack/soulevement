@@ -1,0 +1,200 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormEngine } from "@/modules/nouvelle-demande/components/FormEngine";
+import { AnnexePhotosField } from "@/modules/soulevement/components/AnnexePhotosField";
+import {
+  brisBarrieresFieldsForPart,
+  brisBarrieresPart2Sections,
+  BRIS_BARRIERES_PART_LABELS,
+  type BrisBarrieresPart,
+} from "@/modules/bris-barrieres/schema";
+import { createDossier, saveDossierForm, validateDossier, addAnnexe, deleteAnnexe } from "@/modules/bris-barrieres/api";
+import { useToast } from "@/components/ui/Toast";
+import type { Annexe } from "@/lib/annexes";
+
+const PARTS: BrisBarrieresPart[] = [1, 2];
+
+export default function BrisBarrieresWizardPage() {
+  const router = useRouter();
+  const { notify } = useToast();
+  const [dossierId, setDossierId] = useState<string | null>(null);
+  const [numero, setNumero] = useState<string | null>(null);
+  const [part, setPart] = useState<BrisBarrieresPart>(1);
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [preparing, setPreparing] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Annexe[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const created = useRef(false);
+
+  useEffect(() => {
+    // Garde contre le double-appel de useEffect en React StrictMode (dev).
+    if (created.current) return;
+    created.current = true;
+
+    createDossier()
+      .then(({ dossier }) => {
+        setDossierId(dossier.id);
+        setNumero(dossier.numero);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Erreur"))
+      .finally(() => setPreparing(false));
+  }, []);
+
+  async function handleNext() {
+    if (!dossierId) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await saveDossierForm(dossierId, values);
+      setPart((p) => (p < 2 ? ((p + 1) as BrisBarrieresPart) : p));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur";
+      setError(message);
+      notify(message, "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handlePrevious() {
+    setPart((p) => (p > 1 ? ((p - 1) as BrisBarrieresPart) : p));
+  }
+
+  async function handleUploadPhotos(files: { fileBase64: string; fileName: string; mimeType: string }[]) {
+    if (!dossierId) return;
+    setUploadingPhoto(true);
+    try {
+      let result;
+      for (const file of files) {
+        result = await addAnnexe(dossierId, "photo", file);
+      }
+      if (result) setPhotos(result.annexes.filter((a) => a.type === "photo"));
+      notify("Photo ajoutée", "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handleDeletePhoto(annexeId: string) {
+    if (!dossierId) return;
+    try {
+      const result = await deleteAnnexe(dossierId, annexeId);
+      setPhotos(result.annexes.filter((a) => a.type === "photo"));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Erreur", "error");
+    }
+  }
+
+  async function handleValidate() {
+    if (!dossierId) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await saveDossierForm(dossierId, values);
+      await validateDossier(dossierId);
+      notify("Dossier validé — PDF généré", "success");
+      router.push(`/modules/bris-barrieres/${dossierId}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur";
+      setError(message);
+      notify(message, "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (preparing) {
+    return <p className="text-sm text-[rgb(var(--text-muted))]">Préparation du dossier...</p>;
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Bris de barrières</h1>
+        {numero && <p className="text-sm text-[rgb(var(--text-muted))]">Dossier {numero}</p>}
+      </div>
+
+      <div className="flex items-center gap-2">
+        {PARTS.map((p) => (
+          <div
+            key={p}
+            className={`flex-1 rounded-full px-2 py-1.5 text-center text-xs font-medium ${
+              p === part
+                ? "bg-brand-600 text-white"
+                : p < part
+                  ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+                  : "border border-[rgb(var(--border))] text-[rgb(var(--text-muted))]"
+            }`}
+          >
+            {p}. {BRIS_BARRIERES_PART_LABELS[p]}
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {part === 2 ? (
+        <>
+          <FormEngine
+            schema={brisBarrieresPart2Sections().before}
+            values={values}
+            onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+          />
+          <AnnexePhotosField
+            photos={photos}
+            uploading={uploadingPhoto}
+            onUpload={handleUploadPhotos}
+            onDelete={handleDeletePhoto}
+          />
+          <FormEngine
+            schema={brisBarrieresPart2Sections().after}
+            values={values}
+            onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+          />
+        </>
+      ) : (
+        <FormEngine
+          schema={brisBarrieresFieldsForPart(part)}
+          values={values}
+          onChange={(name, value) => setValues((v) => ({ ...v, [name]: value }))}
+        />
+      )}
+
+      <div className="flex justify-between gap-3">
+        <button
+          type="button"
+          onClick={handlePrevious}
+          disabled={part === 1 || submitting}
+          className="rounded-xl border border-[rgb(var(--border))] px-4 py-2 text-sm font-medium transition hover:border-brand-500 disabled:opacity-50"
+        >
+          Précédent
+        </button>
+        {part < 2 ? (
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={submitting}
+            className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-50"
+          >
+            Suivant
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleValidate}
+            disabled={submitting}
+            className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-50"
+          >
+            Valider et générer le PDF
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -2,7 +2,9 @@
  * Génération du PDF "Soulèvement" à partir d'un template Google Slides construit par code
  * (contrairement à buildAndExportDossierPdf_ dans pdf.gs, qui construit un Google Doc à la
  * volée sans mise en forme imposée). Ici la mise en forme (couleurs, grille de cases à cocher,
- * tableau de contacts) est fixe.
+ * tableau de contacts) est fixe. Mécanique commune à tous les modules "formulaire structuré +
+ * PDF" factorisée dans lib/pdf-slides-helpers.gs — ce fichier ne contient que ce qui est propre
+ * à Soulèvement (couleur, grille conteneur/wagon, tableau de contacts à 3 colonnes).
  *
  * Le fichier Word fourni comme référence n'utilise aucun vrai tableau (`<w:tbl>` = 0,
  * inspection XML) : sa mise en page repose sur 40 zones de texte flottantes, qu'un
@@ -14,27 +16,20 @@
  * par getOrBuildSoulevementTemplate_(), au même esprit que setupDatabase() : pas de fichier à
  * uploader manuellement. Reproduction fidèle de l'organisation/libellés/cases à cocher/code
  * couleur vert du document source, sans viser une réplique pixel-perfect du graphique
- * original (icônes de wagons non reproduites). Cf. ARCHITECTURE.md §8.
- *
- * Format de page : 720×405pt (16:9 standard), FIXE — constaté à l'usage que
- * Slides.Presentations.create() (service avancé) ignore silencieusement pageSize et revient
- * toujours à cette taille par défaut, y compris via un appel REST direct (UrlFetchApp) qui
- * contourne le binding Apps Script. Plutôt qu'une page unique surdimensionnée (dont la hauteur
- * demandée n'était de toute façon jamais appliquée), le contenu est réparti sur plusieurs
- * diapositives — une diapositive Slides = une page PDF à l'export, donc c'est un découpage
- * naturel plutôt qu'un contournement fragile.
+ * original (icônes de wagons non reproduites). Cf. ARCHITECTURE.md §8, §13.
  */
 
 // Suffixe de version : change à chaque modification de la mise en page du template pour forcer
 // sa reconstruction automatique (getOrBuildSoulevementTemplate_ ne réutilise que si la clé de
 // propriété correspond exactement) — pas d'étape manuelle nécessaire après un déploiement.
 var SOULEVEMENT_TEMPLATE_PROP = "SOULEVEMENT_TEMPLATE_ID_V9";
-var CB_CHECKED = "☒"; // ☒
-var CB_UNCHECKED = "☐"; // ☐
 var SOU_GREEN = "#2f7d3c";
-var SOU_PAGE_WIDTH = 720;
-var SOU_MARGIN = 24;
-var SOU_CONTENT_WIDTH = SOU_PAGE_WIDTH - SOU_MARGIN * 2;
+
+var SOULEVEMENT_SIGNATURE_FIELDS = [
+  { name: "signature_st", label: "Service Technique" },
+  { name: "signature_gm", label: "Gestionnaire matériels" },
+  { name: "signature_ef", label: "Entreprise ferroviaire" },
+];
 
 function buildAndExportSoulevementPdf_(dossier) {
   var templateId = getOrBuildSoulevementTemplate_();
@@ -42,14 +37,16 @@ function buildAndExportSoulevementPdf_(dossier) {
   var presentation = SlidesApp.openById(copyFile.getId());
 
   var formData = JSON.parse(dossier.form_data || "{}");
-  var replacements = buildSoulevementReplacements_(dossier, formData);
+  var replacements = buildSlidesReplacements_(SOULEVEMENT_SCHEMA, formData);
+  replacements["numero"] = dossier.numero;
+  replacements["date_generation"] = formatDate_(new Date());
 
   Object.keys(replacements).forEach(function (token) {
     presentation.replaceAllText("{{" + token + "}}", replacements[token]);
   });
 
-  insertSoulevementSignatures_(presentation, formData);
-  souAddPhotoAnnexSlides_(presentation, dossier);
+  slidesInsertSignatures_(presentation, formData, SOULEVEMENT_SIGNATURE_FIELDS);
+  slidesAddPhotoAnnexSlides_(presentation, dossier.id);
   presentation.saveAndClose();
 
   var folder = getDossierFolder_("soulevement", dossier.numero);
@@ -60,117 +57,6 @@ function buildAndExportSoulevementPdf_(dossier) {
   DriveApp.getFileById(copyFile.getId()).setTrashed(true); // seul le PDF est conservé
 
   return pdfFile;
-}
-
-function buildSoulevementReplacements_(dossier, formData) {
-  var replacements = {};
-  replacements["numero"] = dossier.numero;
-  replacements["date_generation"] = formatDate_(new Date());
-
-  SOULEVEMENT_SCHEMA.forEach(function (field) {
-    var value = formData[field.name];
-
-    if (field.type === "checkbox-group") {
-      (field.options || []).forEach(function (opt) {
-        var checked = Array.isArray(value) && value.indexOf(opt) !== -1;
-        replacements[checkboxToken_(field.name, opt)] = checked ? CB_CHECKED : CB_UNCHECKED;
-      });
-    } else if (field.type === "radio") {
-      (field.options || []).forEach(function (opt) {
-        replacements[checkboxToken_(field.name, opt)] = value === opt ? CB_CHECKED : CB_UNCHECKED;
-      });
-    } else if (field.type === "checkbox") {
-      replacements[field.name] = value ? CB_CHECKED : CB_UNCHECKED;
-    } else if (field.type === "signature") {
-      // gérée séparément (image), pas de remplacement texte
-    } else {
-      replacements[field.name] = formatFieldValue_(value);
-    }
-  });
-
-  return replacements;
-}
-
-/**
- * Les signatures sont des images, donc insérées après replaceAllText (qui n'agit que sur le
- * texte). Le contenu étant réparti sur plusieurs diapositives (cf. commentaire de tête de
- * fichier), on cherche le jeton sur chacune plutôt que sur la seule première.
- */
-function insertSoulevementSignatures_(presentation, formData) {
-  var slides = presentation.getSlides();
-
-  SOULEVEMENT_SCHEMA.filter(function (f) {
-    return f.type === "signature";
-  }).forEach(function (field) {
-    var dataUrl = formData[field.name];
-    if (!dataUrl) return;
-
-    var token = "{{" + field.name + "}}";
-    var target = null;
-    var targetSlide = null;
-    slides.forEach(function (s) {
-      if (target) return;
-      var found = s.getShapes().filter(function (shape) {
-        try {
-          return shape.getText().asString().indexOf(token) !== -1;
-        } catch (e) {
-          return false;
-        }
-      })[0];
-      if (found) {
-        target = found;
-        targetSlide = s;
-      }
-    });
-    if (!target) return;
-
-    try {
-      var left = target.getLeft();
-      var top = target.getTop();
-      var width = target.getWidth();
-      var height = target.getHeight();
-      var base64 = dataUrl.split(",").pop();
-      var bytes = Utilities.base64Decode(base64);
-      var blob = Utilities.newBlob(bytes, "image/png", field.name + ".png");
-
-      target.getText().setText("");
-      targetSlide.insertImage(blob, left, top, width, height);
-    } catch (err) {
-      // signature illisible — la génération du PDF continue sans bloquer
-    }
-  });
-}
-
-/**
- * Une page supplémentaire par photo annexe (docmod_annexes, type "photo"), en taille réelle
- * (mise à l'échelle pour tenir sur la page sans dépasser, sans agrandir au-delà de la résolution
- * native). Miniatures affichées dans le formulaire (AnnexePhotosField) ; ici la photo pleine
- * page, après le contenu principal — un slide Google Slides = une page PDF à l'export.
- */
-function souAddPhotoAnnexSlides_(presentation, dossier) {
-  var photos = readTable_("docmod_annexes").filter(function (a) {
-    return String(a.dossier_id) === String(dossier.id) && a.type === "photo";
-  });
-  if (!photos.length) return;
-
-  var pageW = presentation.getPageWidth();
-  var pageH = presentation.getPageHeight();
-
-  photos.forEach(function (photo) {
-    try {
-      var blob = DriveApp.getFileById(photo.drive_file_id).getBlob();
-      var slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
-      var image = slide.insertImage(blob);
-
-      var scale = Math.min(pageW / image.getWidth(), pageH / image.getHeight(), 1);
-      var w = image.getWidth() * scale;
-      var h = image.getHeight() * scale;
-      image.setWidth(w).setHeight(h);
-      image.setLeft((pageW - w) / 2).setTop((pageH - h) / 2);
-    } catch (err) {
-      // photo illisible — la génération du PDF continue sans bloquer
-    }
-  });
 }
 
 function getOrBuildSoulevementTemplate_() {
@@ -197,38 +83,37 @@ function getOrBuildSoulevementTemplate_() {
   });
 
   // Contenu réparti sur 3 diapositives (chacune ≤ ~380pt de contenu réel, marge sous les 405pt
-  // disponibles — cf. commentaire de tête de fichier) en gardant l'ordre de lecture logique
-  // (localisation/matériel → contacts → autorisation), plutôt que 4 diapositives strictement
-  // calquées sur les parties du formulaire.
+  // disponibles — cf. lib/pdf-slides-helpers.gs) en gardant l'ordre de lecture logique
+  // (localisation/matériel → contacts → autorisation).
   var y = 20;
-  y = souAddHeaderBand_(slide, y);
-  y = souAddFieldRowN_(slide, y, [
+  y = slidesAddHeaderBand_(slide, y, "Soulèvement de wagons — Dossier {{numero}}", SOU_GREEN);
+  y = slidesAddFieldRowN_(slide, y, [
     { label: "Date", token: "date" },
     { label: "Heure", token: "heure" },
     { label: "Nom", token: "nom_controleur" },
   ]);
-  y = souAddSectionTitle_(slide, y, "Localisation (voies)");
-  y = souAddCheckboxGrid_(slide, y, "localisation", VOIES_OPTIONS, 6);
-  y = souAddFieldRow_(slide, y, "Quoi ? (Matériels roulant)", "quoi");
+  y = slidesAddSectionTitle_(slide, y, "Localisation (voies)", SOU_GREEN);
+  y = slidesAddCheckboxGrid_(slide, y, "localisation", VOIES_OPTIONS, 6);
+  y = slidesAddFieldRow_(slide, y, "Quoi ? (Matériels roulant)", "quoi");
   souAddContainerWagonGrid_(slide, y);
 
   slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
   y = 20;
-  y = souAddCheckboxRowInline_(slide, y, "Longueur wagon", "longueur_wagon", ["40'", "60'", "80'"]);
-  y = souAddCheckboxRowInline_(slide, y, "Relevage nécessaire ?", "relevage_necessaire", ["Oui", "Non"]);
-  y = souAddCheckboxRowInline_(slide, y, "Météo", "meteo", ["Ensoleillé", "Brumeux", "Pluvieux", "Vent"]);
-  y = souAddCheckboxRowInline_(slide, y, "Moment", "moment_journee", ["Nuit", "Jour"]);
-  y = souAddCheckboxRowInline_(slide, y, "Visibilité", "visibilite", ["Bonne", "Moyenne", "Mauvaise"]);
-  y = souAddCheckboxList_(slide, y, "Conséquence et mesures conservatoires prises", "consequences", CONSEQUENCES_OPTIONS);
-  y = souAddSectionTitle_(slide, y, "Appel aux personnes concernées");
+  y = slidesAddCheckboxRowInline_(slide, y, "Longueur wagon", "longueur_wagon", ["40'", "60'", "80'"]);
+  y = slidesAddCheckboxRowInline_(slide, y, "Relevage nécessaire ?", "relevage_necessaire", ["Oui", "Non"]);
+  y = slidesAddCheckboxRowInline_(slide, y, "Météo", "meteo", ["Ensoleillé", "Brumeux", "Pluvieux", "Vent"]);
+  y = slidesAddCheckboxRowInline_(slide, y, "Moment", "moment_journee", ["Nuit", "Jour"]);
+  y = slidesAddCheckboxRowInline_(slide, y, "Visibilité", "visibilite", ["Bonne", "Moyenne", "Mauvaise"]);
+  y = slidesAddCheckboxList_(slide, y, "Conséquence et mesures conservatoires prises", "consequences", CONSEQUENCES_OPTIONS);
+  y = slidesAddSectionTitle_(slide, y, "Appel aux personnes concernées", SOU_GREEN);
   souAddContactsTable_(slide, y);
 
   slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
   y = 20;
-  y = souAddSectionTitle_(slide, y, "Autorisation de manœuvre reçue");
-  y = souAddSignaturesRow_(slide, y);
-  y = souAddFieldTriplet_(slide, y, "Date/heure", ["date_heure_st", "date_heure_gm", "date_heure_ef"]);
-  souAddFieldPair_(slide, y, "Validation Aiguilleur le", "validation_aiguilleur_le", "Fiche clôturée le", "fiche_cloturee_le");
+  y = slidesAddSectionTitle_(slide, y, "Autorisation de manœuvre reçue", SOU_GREEN);
+  y = slidesAddSignaturesRow_(slide, y, SOULEVEMENT_SIGNATURE_FIELDS);
+  y = slidesAddFieldTriplet_(slide, y, "Date/heure", ["date_heure_st", "date_heure_gm", "date_heure_ef"]);
+  slidesAddFieldPair_(slide, y, "Validation Aiguilleur le", "validation_aiguilleur_le", "Fiche clôturée le", "fiche_cloturee_le");
 
   presentation.saveAndClose();
 
@@ -240,136 +125,8 @@ function getOrBuildSoulevementTemplate_() {
   return presentation.getId();
 }
 
-// --- Helpers de mise en page (curseur Y, unités en points) ---
-
-function souAddHeaderBand_(slide, y) {
-  var band = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, SOU_MARGIN, y, SOU_CONTENT_WIDTH, 40);
-  band.getFill().setSolidFill(SOU_GREEN);
-  band.getBorder().setTransparent();
-  var text = band.getText();
-  text.setText("Soulèvement de wagons — Dossier {{numero}}");
-  text.getTextStyle().setForegroundColor("#ffffff").setBold(true).setFontSize(16);
-  text.getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.CENTER);
-  return y + 50;
-}
-
-function souAddSectionTitle_(slide, y, label) {
-  var band = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, SOU_MARGIN, y, SOU_CONTENT_WIDTH, 22);
-  band.getFill().setSolidFill(SOU_GREEN);
-  band.getBorder().setTransparent();
-  var text = band.getText();
-  text.setText(label);
-  text.getTextStyle().setForegroundColor("#ffffff").setBold(true).setFontSize(11);
-  return y + 30;
-}
-
-function souAddFieldRow_(slide, y, label, token) {
-  var labelBox = slide.insertTextBox(label + " :", SOU_MARGIN, y, 220, 18);
-  labelBox.getText().getTextStyle().setFontSize(10).setBold(true);
-  var valueBox = slide.insertTextBox("{{" + token + "}}", SOU_MARGIN + 220, y, SOU_CONTENT_WIDTH - 220, 18);
-  valueBox.getText().getTextStyle().setFontSize(10);
-  return y + 24;
-}
-
-function souAddFieldPair_(slide, y, label1, token1, label2, token2) {
-  var half = SOU_CONTENT_WIDTH / 2;
-
-  var l1 = slide.insertTextBox(label1 + " :", SOU_MARGIN, y, half - 10, 18);
-  l1.getText().getTextStyle().setFontSize(10).setBold(true);
-  var v1 = slide.insertTextBox("{{" + token1 + "}}", SOU_MARGIN, y + 18, half - 10, 18);
-  v1.getText().getTextStyle().setFontSize(10);
-
-  var l2 = slide.insertTextBox(label2 + " :", SOU_MARGIN + half, y, half - 10, 18);
-  l2.getText().getTextStyle().setFontSize(10).setBold(true);
-  var v2 = slide.insertTextBox("{{" + token2 + "}}", SOU_MARGIN + half, y + 18, half - 10, 18);
-  v2.getText().getTextStyle().setFontSize(10);
-
-  return y + 44;
-}
-
-/** Rangée à N colonnes égales, chacune avec son propre libellé (contrairement à souAddFieldTriplet_,
- * qui répète le même libellé pour N jetons). */
-function souAddFieldRowN_(slide, y, fields) {
-  var colWidth = SOU_CONTENT_WIDTH / fields.length;
-
-  fields.forEach(function (f, i) {
-    var x = SOU_MARGIN + i * colWidth;
-    var lbl = slide.insertTextBox(f.label + " :", x, y, colWidth - 10, 18);
-    lbl.getText().getTextStyle().setFontSize(10).setBold(true);
-    var val = slide.insertTextBox("{{" + f.token + "}}", x, y + 18, colWidth - 10, 18);
-    val.getText().getTextStyle().setFontSize(10);
-  });
-
-  return y + 44;
-}
-
-function souAddFieldTriplet_(slide, y, label, tokens) {
-  var third = SOU_CONTENT_WIDTH / 3;
-
-  tokens.forEach(function (token, i) {
-    var x = SOU_MARGIN + i * third;
-    var lbl = slide.insertTextBox(label + " :", x, y, third - 10, 16);
-    lbl.getText().getTextStyle().setFontSize(9).setBold(true);
-    var val = slide.insertTextBox("{{" + token + "}}", x, y + 16, third - 10, 18);
-    val.getText().getTextStyle().setFontSize(9);
-  });
-
-  return y + 40;
-}
-
-function souAddCheckboxGrid_(slide, y, fieldName, options, perRow) {
-  var cellWidth = SOU_CONTENT_WIDTH / perRow;
-
-  options.forEach(function (opt, i) {
-    var col = i % perRow;
-    var row = Math.floor(i / perRow);
-    var x = SOU_MARGIN + col * cellWidth;
-    var rowY = y + row * 18;
-
-    var cb = slide.insertTextBox("{{" + checkboxToken_(fieldName, opt) + "}}", x, rowY, 16, 16);
-    cb.getText().getTextStyle().setFontSize(10);
-    var lbl = slide.insertTextBox(opt, x + 16, rowY, cellWidth - 16, 16);
-    lbl.getText().getTextStyle().setFontSize(9);
-  });
-
-  var rows = Math.ceil(options.length / perRow);
-  return y + rows * 18 + 8;
-}
-
-function souAddCheckboxRowInline_(slide, y, label, fieldName, options) {
-  var lbl = slide.insertTextBox(label + " :", SOU_MARGIN, y, 140, 18);
-  lbl.getText().getTextStyle().setFontSize(10).setBold(true);
-
-  var x = SOU_MARGIN + 140;
-  options.forEach(function (opt) {
-    var cb = slide.insertTextBox("{{" + checkboxToken_(fieldName, opt) + "}}", x, y, 14, 16);
-    cb.getText().getTextStyle().setFontSize(10);
-    var optWidth = 20 + opt.length * 6;
-    var optLbl = slide.insertTextBox(opt, x + 14, y, optWidth, 16);
-    optLbl.getText().getTextStyle().setFontSize(9);
-    x += 14 + optWidth + 6;
-  });
-
-  return y + 24;
-}
-
-/** Liste verticale de phrases à cocher, une par ligne (options trop longues pour un alignement
- * horizontal comme souAddCheckboxRowInline_) — ex. "Conséquences et mesures". */
-function souAddCheckboxList_(slide, y, label, fieldName, options) {
-  var lbl = slide.insertTextBox(label + " :", SOU_MARGIN, y, SOU_CONTENT_WIDTH, 14);
-  lbl.getText().getTextStyle().setFontSize(9).setBold(true);
-  y += 15;
-
-  options.forEach(function (opt) {
-    var cb = slide.insertTextBox("{{" + checkboxToken_(fieldName, opt) + "}}", SOU_MARGIN, y, 14, 12);
-    cb.getText().getTextStyle().setFontSize(8);
-    var optLbl = slide.insertTextBox(opt, SOU_MARGIN + 16, y, SOU_CONTENT_WIDTH - 16, 12);
-    optLbl.getText().getTextStyle().setFontSize(7);
-    y += 13;
-  });
-
-  return y + 4;
-}
+// --- Helpers propres à Soulèvement (pas génériques : structure conteneur/wagon et tableau de
+// contacts à 3 colonnes spécifiques à ce module) ---
 
 function souAddContainerWagonGrid_(slide, y) {
   var positions = [
@@ -378,10 +135,10 @@ function souAddContainerWagonGrid_(slide, y) {
     { label: "Soulevé PARIS", conteneur: "conteneur_souleve_paris", wagon: "wagon_souleve_paris" },
     { label: "Encadrant PARIS", conteneur: "conteneur_encadrant_paris", wagon: "wagon_encadrant_paris" },
   ];
-  var colWidth = SOU_CONTENT_WIDTH / 4;
+  var colWidth = SLIDES_CONTENT_WIDTH / 4;
 
   positions.forEach(function (pos, i) {
-    var x = SOU_MARGIN + i * colWidth;
+    var x = SLIDES_MARGIN + i * colWidth;
 
     var lbl = slide.insertTextBox(pos.label, x, y, colWidth - 6, 16);
     lbl.getText().getTextStyle().setFontSize(9).setBold(true);
@@ -426,10 +183,10 @@ function souAddContactsTable_(slide, y) {
       telephone: "ef_telephone",
     },
   ];
-  var colWidth = SOU_CONTENT_WIDTH / 3;
+  var colWidth = SLIDES_CONTENT_WIDTH / 3;
 
   columns.forEach(function (col, i) {
-    var x = SOU_MARGIN + i * colWidth;
+    var x = SLIDES_MARGIN + i * colWidth;
     var cy = y;
 
     var title = slide.insertTextBox(col.title, x, cy, colWidth - 6, 16);
@@ -468,29 +225,4 @@ function souAddContactsTable_(slide, y) {
   });
 
   return y + 140;
-}
-
-function souAddSignaturesRow_(slide, y) {
-  var fields = [
-    { label: "Service Technique", token: "signature_st" },
-    { label: "Gestionnaire matériels", token: "signature_gm" },
-    { label: "Entreprise ferroviaire", token: "signature_ef" },
-  ];
-  var colWidth = SOU_CONTENT_WIDTH / 3;
-  var boxHeight = 70;
-
-  fields.forEach(function (f, i) {
-    var x = SOU_MARGIN + i * colWidth;
-
-    var lbl = slide.insertTextBox(f.label, x, y, colWidth - 10, 16);
-    lbl.getText().getTextStyle().setFontSize(9).setBold(true);
-
-    var box = slide.insertShape(SlidesApp.ShapeType.RECTANGLE, x, y + 18, colWidth - 10, boxHeight);
-    box.getBorder().getLineFill().setSolidFill("#999999");
-    box.getFill().setTransparent();
-    box.getText().setText("{{" + f.token + "}}");
-    box.getText().getTextStyle().setFontSize(7).setForegroundColor("#cccccc");
-  });
-
-  return y + 18 + boxHeight + 12;
 }

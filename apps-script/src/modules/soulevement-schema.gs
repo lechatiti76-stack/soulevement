@@ -104,7 +104,4 @@ var SOULEVEMENT_SCHEMA = [
   { name: "fiche_cloturee_le", label: "Fiche clôturée le", type: "date", part: 3 },
 ];
 
-/** Jeton de remplacement pour une option de case à cocher (radio ou checkbox-group). */
-function checkboxToken_(fieldName, optionValue) {
-  return fieldName + "__" + String(optionValue).replace(/[^a-zA-Z0-9]/g, "");
-}
+// checkboxToken_ déplacé dans lib/pdf-slides-helpers.gs (partagé entre modules).

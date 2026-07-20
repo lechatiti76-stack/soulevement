@@ -1,9 +1,12 @@
 /**
  * Modules de dossiers : dépôt de document, formulaire, génération PDF, commentaires,
- * historique, annexes. Deux modules à ce jour :
+ * historique, annexes. Modules à ce jour :
  * - "nouvelle-demande" : générique, dépôt de document + extraction IA (Phase 2-3, inchangé)
  * - "soulevement" : fiche wagons, formulaire structuré en 3 parties, sans document source,
  *   PDF généré depuis un template Slides (cf. lib/pdf-template.gs)
+ * - "bris-barrieres" : accidents (barrières, collisions, événements), formulaire structuré en
+ *   2 parties, sans document source, PDF généré depuis un template Slides
+ *   (cf. lib/pdf-template-bris.gs)
  * Cf. ARCHITECTURE.md §4, §6, §7.
  */
 
@@ -12,6 +15,7 @@ var DOSSIER_MODULE = "nouvelle-demande"; // valeur par défaut / rétrocompatibi
 var MODULE_CONFIG = {
   "nouvelle-demande": { prefix: "ND", requiresSource: true },
   "soulevement": { prefix: "SOU", requiresSource: false },
+  "bris-barrieres": { prefix: "BAR", requiresSource: false },
 };
 
 function moduleConfig_(module) {
@@ -175,7 +179,9 @@ function dossiersValidate_(body) {
   var pdfFile =
     module === "soulevement"
       ? buildAndExportSoulevementPdf_(dossier)
-      : buildAndExportDossierPdf_(dossier, DOSSIER_SCHEMA);
+      : module === "bris-barrieres"
+        ? buildAndExportBrisBarrieresPdf_(dossier)
+        : buildAndExportDossierPdf_(dossier, DOSSIER_SCHEMA);
 
   var now = new Date().toISOString();
 
