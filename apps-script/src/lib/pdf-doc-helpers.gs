@@ -174,8 +174,8 @@ function docAddSignaturesRow_(body, fields) {
   var table = body.appendTable([labels, tokens]);
   for (var i = 0; i < fields.length; i++) {
     table.getCell(0, i).editAsText().setBold(true).setFontSize(8);
-    table.getCell(1, i).setHeight(50);
   }
+  table.getRow(1).setMinimumHeight(50); // la hauteur se règle par ligne, pas par cellule
   return table;
 }
 
