@@ -3,9 +3,9 @@
  * historique, annexes. Modules à ce jour :
  * - "nouvelle-demande" : générique, dépôt de document + extraction IA (Phase 2-3, inchangé)
  * - "soulevement" : fiche wagons, formulaire structuré en 3 parties, sans document source,
- *   PDF généré depuis un template Slides (cf. lib/pdf-template.gs)
+ *   PDF généré via Google Docs (cf. lib/pdf-template.gs)
  * - "bris-barrieres" : accidents (barrières, collisions, événements), formulaire structuré en
- *   2 parties, sans document source, PDF généré depuis un template Slides
+ *   2 parties, sans document source, PDF généré via Google Docs
  *   (cf. lib/pdf-template-bris.gs)
  * Cf. ARCHITECTURE.md §4, §6, §7.
  */

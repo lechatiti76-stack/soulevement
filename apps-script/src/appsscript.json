@@ -2,8 +2,7 @@
   "timeZone": "Europe/Paris",
   "dependencies": {
     "enabledAdvancedServices": [
-      { "userSymbol": "Drive", "serviceId": "drive", "version": "v2" },
-      { "userSymbol": "Slides", "serviceId": "slides", "version": "v1" }
+      { "userSymbol": "Drive", "serviceId": "drive", "version": "v2" }
     ]
   },
   "webapp": {

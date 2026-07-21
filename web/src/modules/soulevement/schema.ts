@@ -26,6 +26,7 @@ const CONSEQUENCES = [
   "Soulévement et déraillement de wagons engageant un aiguillage",
   "Soulévement et déraillement de wagons engageant 2 voies de service",
   "Soulévemement de wagons engageant une voie de service",
+  "Arrêt des circulations",
 ];
 const SERVICE_TECHNIQUE = ["D. PERROT", "S. CHIPPINGTHON", "Y. BENARD"];
 const GESTIONNAIRE = ["SDH FER", "SOCORAIL", "WASCOSA", "ERMEWA", "INVEHO", "FREEMAN"];

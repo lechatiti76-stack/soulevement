@@ -15,20 +15,24 @@ var BAR_TYPE_COLLISION_OPTIONS = [
   "Collision piéton",
   "Collision véhicule",
   "Collision obstacle",
-  "Collision véhicule de manœuvre",
+  "Collision avec un engin de manutention",
   "Collision/déraillement de wagon(s), rails, obstacle",
   "Autres",
 ];
 var BAR_MESURES_OPTIONS = [
   "Arrêt des circulations ferroviaire",
-  "Suspension d'ensemble de la fréquentation et régularisation",
+  "Arrêt des circulations ferroviaire partielle côté Le Havre",
+  "Arrêt des circulations ferroviaire partielle côté Paris",
+];
+var BAR_CONSEQUENCES_OPTIONS = [
+  "Suspension de l'ensemble des transports ferroviaires et routiers",
+  "Suspension de l'ensemble des transports ferroviaires",
 ];
 var BAR_CAUSES_OPTIONS = [
-  "Passage à niveau passif",
-  "Passage à niveau manuel",
-  "Passage à niveau actif automatique avec annonce sonore et occupé",
-  "Passage à niveau actif automatique avec préavis actif",
-  "Passage à niveau actif avec annonce sonore actif et gyrophare",
+  "Défaillance des SAL (Système automatique lumineux)",
+  "Défaillance des systèmes sonores",
+  "Défaillance des barrières",
+  "Non-respect des consignes ferroviaires",
   "Autres",
 ];
 var BAR_STATUT_AVIS_OPTIONS = ["Reçu", "Non reçu"];
@@ -87,7 +91,13 @@ var BRIS_BARRIERES_SCHEMA = [
     part: 1,
     options: BAR_MESURES_OPTIONS,
   },
-  { name: "consequences", label: "Conséquences", type: "textarea", part: 1 },
+  {
+    name: "consequences",
+    label: "Conséquences",
+    type: "checkbox-group",
+    part: 1,
+    options: BAR_CONSEQUENCES_OPTIONS,
+  },
   { name: "causes", label: "Causes (à recueillir auprès du mainteneur si besoin)", type: "select", part: 1, options: BAR_CAUSES_OPTIONS },
 
   // Partie 2 — Avis lancés, documents et clôture

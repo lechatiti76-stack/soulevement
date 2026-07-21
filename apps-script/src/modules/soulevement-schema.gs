@@ -26,6 +26,7 @@ var CONSEQUENCES_OPTIONS = [
   "Soulévement et déraillement de wagons engageant un aiguillage",
   "Soulévement et déraillement de wagons engageant 2 voies de service",
   "Soulévemement de wagons engageant une voie de service",
+  "Arrêt des circulations",
 ];
 var SERVICE_TECHNIQUE_OPTIONS = ["D. PERROT", "S. CHIPPINGTHON", "Y. BENARD"];
 var GESTIONNAIRE_OPTIONS = ["SDH FER", "SOCORAIL", "WASCOSA", "ERMEWA", "INVEHO", "FREEMAN"];

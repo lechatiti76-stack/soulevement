@@ -49,11 +49,18 @@ function FieldControl({
         />
       );
     case "select":
+      // bg-transparent (INPUT_CLASS) laisse le menu déroulant natif retomber sur un fond clair
+      // par défaut du navigateur en mode sombre, avec un texte clair hérité par-dessus —
+      // illisible. Fond/texte concrets ici (pas "transparent") pour que le popup natif les reprenne.
       return (
-        <select className={INPUT_CLASS} value={(value as string) || ""} onChange={(e) => onChange(e.target.value)}>
+        <select
+          className={`${INPUT_CLASS} bg-[rgb(var(--bg-elevated))] text-[rgb(var(--text))]`}
+          value={(value as string) || ""}
+          onChange={(e) => onChange(e.target.value)}
+        >
           <option value="">—</option>
           {field.options?.map((opt) => (
-            <option key={opt.value} value={opt.value}>
+            <option key={opt.value} value={opt.value} className="bg-[rgb(var(--bg-elevated))] text-[rgb(var(--text))]">
               {opt.label}
             </option>
           ))}
