@@ -107,33 +107,46 @@ function barAddAvisGrid_(body) {
 }
 
 /**
- * Tampon de validation en pied de page (répété sur chaque page, natif à FooterSection) :
- * logo ferroviaire simplifié (glyphe texte — aucune image de logo fournie/générable depuis cet
- * environnement, à remplacer par un vrai fichier logo si besoin d'un rendu plus soigné),
- * "Circulation ferroviaire", entreprise, nom, mention "Validé".
+ * Tampon de validation en pied de page (répété sur chaque page, natif à FooterSection), poussé
+ * dans le coin bas-droit via une cellule "espaceur" vide à gauche — DocumentApp n'offre pas de
+ * positionnement absolu ni de superposition image/texte avec transparence (contrairement à
+ * Slides), donc le logo et le texte sont regroupés serré dans une même cellule plutôt que
+ * superposés. Logo simplifié en pictogramme "roue" (rond par nature, faute d'image de logo
+ * fournie/générable depuis cet environnement — à remplacer par un vrai fichier logo si besoin
+ * d'un rendu plus soigné).
  */
 function barAddFooterStamp_(doc) {
   var footer = doc.getFooter() || doc.addFooter();
-  var table = footer.appendTable([["🚆", "Circulation ferroviaire"]]);
-  table.setBorderWidth(1);
-  table.setBorderColor(BAR_ORANGE);
+  var table = footer.appendTable([["", "🛞"]]);
+  table.setBorderWidth(0);
 
-  var logoCell = table.getCell(0, 0);
-  logoCell.setWidth(36);
-  logoCell.editAsText().setFontSize(20);
-  logoCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  var spacerCell = table.getCell(0, 0);
+  spacerCell.setWidth(380);
 
-  var textCell = table.getCell(0, 1);
-  textCell.editAsText().setBold(true).setFontSize(9).setForegroundColor(BAR_ORANGE);
+  var stampCell = table.getCell(0, 1);
+  stampCell.setWidth(140);
+  stampCell.setBackgroundColor("#fdf1e0");
+  stampCell.setPaddingTop(4).setPaddingBottom(4).setPaddingLeft(6).setPaddingRight(6);
 
-  var eLine = textCell.appendParagraph("Entreprise : LHTE");
-  eLine.editAsText().setBold(false).setFontSize(8).setForegroundColor("#000000");
+  var logoLine = stampCell.getChild(0).asParagraph();
+  logoLine.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  logoLine.editAsText().setFontSize(20);
 
-  var nLine = textCell.appendParagraph("Nom : PATON ROMUALD");
-  nLine.editAsText().setBold(false).setFontSize(8).setForegroundColor("#000000");
+  var titleLine = stampCell.appendParagraph("Circulation ferroviaire");
+  titleLine.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  titleLine.editAsText().setBold(true).setFontSize(8).setForegroundColor(BAR_ORANGE);
 
-  var vLine = textCell.appendParagraph("✔ Validé");
-  vLine.editAsText().setBold(true).setFontSize(9).setForegroundColor("#2f7d3c");
+  var eLine = stampCell.appendParagraph("Entreprise : LHTE");
+  eLine.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  eLine.editAsText().setFontSize(7).setForegroundColor("#000000");
+
+  var nLine = stampCell.appendParagraph("PATON ROMUALD");
+  nLine.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  nLine.editAsText().setFontSize(7).setForegroundColor("#000000");
+
+  var vLine = stampCell.appendParagraph("✔ Validé");
+  vLine.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  vLine.editAsText().setBold(true).setFontSize(8).setForegroundColor("#2f7d3c");
 
   return table;
 }
