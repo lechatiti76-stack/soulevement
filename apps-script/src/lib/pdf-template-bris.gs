@@ -27,8 +27,8 @@ function buildAndExportBrisBarrieresPdf_(dossier) {
   ]);
   docAddFieldRow_(body, "Type de collision", "type_collision");
   docAddFieldRowN_(body, [
-    { label: "Circonstances", token: "circonstance_1" },
-    { label: "Circonstances (suite)", token: "circonstance_2" },
+    { label: "Sens", token: "sens" },
+    { label: "Type", token: "type_pn" },
   ]);
   docAddCheckboxList_(body, "Mesures prises", "mesures_prises", BAR_MESURES_OPTIONS);
   docAddCheckboxList_(body, "Conséquences", "consequences", BAR_CONSEQUENCES_OPTIONS);
@@ -53,6 +53,7 @@ function buildAndExportBrisBarrieresPdf_(dossier) {
   docApplyReplacements_(body, replacements);
 
   docAddPhotoAnnexPages_(body, dossier.id);
+  barAddFooterStamp_(doc);
 
   doc.saveAndClose();
 
@@ -101,6 +102,38 @@ function barAddAvisGrid_(body) {
     var pHeure = cell.appendParagraph("Heure : {{" + org.key + "_heure}}");
     pHeure.editAsText().setBold(false).setFontSize(8);
   });
+
+  return table;
+}
+
+/**
+ * Tampon de validation en pied de page (répété sur chaque page, natif à FooterSection) :
+ * logo ferroviaire simplifié (glyphe texte — aucune image de logo fournie/générable depuis cet
+ * environnement, à remplacer par un vrai fichier logo si besoin d'un rendu plus soigné),
+ * "Circulation ferroviaire", entreprise, nom, mention "Validé".
+ */
+function barAddFooterStamp_(doc) {
+  var footer = doc.getFooter() || doc.addFooter();
+  var table = footer.appendTable([["🚆", "Circulation ferroviaire"]]);
+  table.setBorderWidth(1);
+  table.setBorderColor(BAR_ORANGE);
+
+  var logoCell = table.getCell(0, 0);
+  logoCell.setWidth(36);
+  logoCell.editAsText().setFontSize(20);
+  logoCell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+  var textCell = table.getCell(0, 1);
+  textCell.editAsText().setBold(true).setFontSize(9).setForegroundColor(BAR_ORANGE);
+
+  var eLine = textCell.appendParagraph("Entreprise : LHTE");
+  eLine.editAsText().setBold(false).setFontSize(8).setForegroundColor("#000000");
+
+  var nLine = textCell.appendParagraph("Nom : PATON ROMUALD");
+  nLine.editAsText().setBold(false).setFontSize(8).setForegroundColor("#000000");
+
+  var vLine = textCell.appendParagraph("✔ Validé");
+  vLine.editAsText().setBold(true).setFontSize(9).setForegroundColor("#2f7d3c");
 
   return table;
 }

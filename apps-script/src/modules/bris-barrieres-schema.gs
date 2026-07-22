@@ -35,7 +35,70 @@ var BAR_CAUSES_OPTIONS = [
   "Non-respect des consignes ferroviaires",
   "Autres",
 ];
+var BAR_TYPE_PN_OPTIONS = [
+  "Passage à niveau passif",
+  "Passage à niveau actif manuel",
+  "Passage à niveau actif automatique avec avertissement côté usagers",
+  "Passage à niveau actif automatique avec protection côté usagers",
+  "Passage à niveau actif avec avertissement côté rails",
+  "Autres",
+];
+var BAR_SENS_OPTIONS = ["Paris - Le Havre", "Le Havre - Paris"];
 var BAR_STATUT_AVIS_OPTIONS = ["Reçu", "Non reçu"];
+
+// Classes de danger ADR/RID (marchandises dangereuses).
+var BAR_CLASSE_MD_OPTIONS = [
+  "1 – Explosifs",
+  "2 – Gaz (comprimés, liquéfiés ou dissous)",
+  "2.1 – Gaz inflammables",
+  "2.2 – Gaz non inflammables, non toxiques",
+  "2.3 – Gaz toxiques",
+  "3 – Liquides inflammables",
+  "4.1 – Solides inflammables, matières autoréactives, explosifs désensibilisés solides",
+  "4.2 – Matières sujettes à l'inflammation spontanée",
+  "4.3 – Matières qui, au contact de l'eau, dégagent des gaz inflammables",
+  "5.1 – Matières comburantes",
+  "5.2 – Peroxydes organiques",
+  "6.1 – Matières toxiques",
+  "6.2 – Matières infectieuses",
+  "7 – Matières radioactives",
+  "8 – Matières corrosives",
+  "9 – Matières et objets dangereux divers",
+];
+
+// Codes Kemler / numéros d'identification du danger.
+var BAR_CODE_MD_OPTIONS = [
+  "20 – Gaz non inflammable",
+  "22 – Gaz liquéfié réfrigéré",
+  "23 – Gaz inflammable",
+  "25 – Gaz comburant",
+  "26 – Gaz toxique",
+  "263 – Gaz toxique et inflammable",
+  "265 – Gaz toxique et comburant",
+  "30 – Liquide inflammable",
+  "33 – Liquide très inflammable",
+  "336 – Liquide très inflammable et toxique",
+  "338 – Liquide très inflammable et corrosif",
+  "39 – Liquide inflammable pouvant réagir spontanément",
+  "40 – Solide inflammable",
+  "42 – Matière susceptible de s'enflammer spontanément",
+  "43 – Matière qui dégage un gaz inflammable au contact de l'eau",
+  "44 – Solide inflammable transporté à chaud",
+  "50 – Matière comburante",
+  "55 – Comburant puissant",
+  "56 – Matière comburante toxique",
+  "58 – Matière comburante corrosive",
+  "60 – Matière toxique",
+  "66 – Matière très toxique",
+  "68 – Matière toxique corrosive",
+  "80 – Matière corrosive",
+  "83 – Matière corrosive inflammable",
+  "85 – Matière corrosive comburante",
+  "86 – Matière corrosive toxique",
+  "88 – Matière très corrosive",
+  "90 – Matière dangereuse diverse",
+  "99 – Matière dangereuse transportée à température élevée",
+];
 var BAR_DOCUMENTS_OPTIONS = ["Constat", "Photos", "RCI", "Vidéo", "Bulletin C"];
 
 // Les 9 organismes du tableau "Avis lancés" (case + heure pour chacun) — ordre calqué sur le
@@ -82,8 +145,8 @@ var BRIS_BARRIERES_SCHEMA = [
     part: 1,
     options: BAR_TYPE_COLLISION_OPTIONS,
   },
-  { name: "circonstance_1", label: "Circonstances", type: "text", part: 1 },
-  { name: "circonstance_2", label: "Circonstances (suite)", type: "text", part: 1 },
+  { name: "sens", label: "Sens", type: "radio", part: 1, options: BAR_SENS_OPTIONS },
+  { name: "type_pn", label: "Type", type: "select", part: 1, options: BAR_TYPE_PN_OPTIONS },
   {
     name: "mesures_prises",
     label: "Mesures prises",
@@ -109,8 +172,8 @@ var BRIS_BARRIERES_SCHEMA = [
     part: 2,
     options: BAR_DOCUMENTS_OPTIONS,
   },
-  { name: "code_md", label: "Code MD", type: "text", part: 2 },
-  { name: "classe_md", label: "Classe MD", type: "text", part: 2 },
+  { name: "code_md", label: "Code MD", type: "select", part: 2, options: BAR_CODE_MD_OPTIONS },
+  { name: "classe_md", label: "Classe MD", type: "select", part: 2, options: BAR_CLASSE_MD_OPTIONS },
   { name: "numero_conteneur", label: "N° conteneur", type: "text", part: 2 },
   { name: "reprise_service_normal", label: "Reprise du service normal", type: "radio", part: 2, options: ["Oui", "Non"] },
   { name: "date_heure_reprise", label: "Date et heure de reprise", type: "text", part: 2 },
