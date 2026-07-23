@@ -7,10 +7,27 @@ function opts(values: string[]) {
   return values.map((v) => ({ value: v, label: v }));
 }
 
-const LIEU = ["TR 124", "TR 128", "TR 192"];
+const LIEU = [
+  "TR 124",
+  "TR 128",
+  "TR 192",
+  "TR 132",
+  "TR 39",
+  "TR 35",
+  "TR 143",
+  "TR 140",
+  "Portail EST",
+  "Portail OUEST",
+];
 const EMETTEUR = ["PATON ROMUALD"];
-const NATURE = ["Prise de barrière", "Collision"];
-const NATURE_DETAIL = ["1 demi barrière", "2 barrière"];
+const NATURE = ["Prise de barrière", "Bris de barrière", "Collision", "Heurt"];
+const NATURE_DETAIL = [
+  "1 demi-barrière droite",
+  "1 demi-barrière Gauche",
+  "2 barrières",
+  "3 barrières",
+  "4 barrières",
+];
 const TYPE_COLLISION = [
   "Collision piéton",
   "Collision véhicule",
@@ -33,6 +50,11 @@ const CAUSES = [
   "Défaillance des systèmes sonores",
   "Défaillance des barrières",
   "Non-respect des consignes ferroviaires",
+  "PN à SAL est constaté ou signalé avec (un ou les) feux routiers allumés",
+  "PN à SAL est constaté ou signalé avec le maintien en position de fermeture d'une ou plusieurs demi-barrières d'un PN à deux ou quatre demi-barrières",
+  "PN à SAL est constaté ou signalé une extinction de plusieurs feux routiers",
+  "PN à SAL est constaté ou signalé avec le maintien en position d'ouverture d'une ou des deux demi-barrières d'un PN à deux demi-barrières",
+  "PN à SAL est constaté ou signalé avec le maintien en position d'ouverture d'une ou des deux demi-barrières d'entrée d'un PN à quatre demi-barrières",
   "Autres",
 ];
 const TYPE_PN = [
