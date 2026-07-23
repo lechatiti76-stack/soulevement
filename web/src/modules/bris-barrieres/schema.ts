@@ -10,7 +10,6 @@ function opts(values: string[]) {
 const LIEU = [
   "TR 124",
   "TR 128",
-  "TR 192",
   "TR 132",
   "TR 39",
   "TR 35",
@@ -20,7 +19,7 @@ const LIEU = [
   "Portail OUEST",
 ];
 const EMETTEUR = ["PATON ROMUALD"];
-const NATURE = ["Prise de barrière", "Bris de barrière", "Collision", "Heurt"];
+const NATURE = ["Bris de barrière", "Collision", "Heurt"];
 const NATURE_DETAIL = [
   "1 demi-barrière droite",
   "1 demi-barrière Gauche",
